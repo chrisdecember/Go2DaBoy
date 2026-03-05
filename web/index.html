@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0F380F">
+    <title>yukudanshi - Game Boy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="loading-screen">
+            <div class="loader"></div>
+            <p>Loading emulator...</p>
+        </div>
+
+        <div id="emulator" class="hidden">
+            <div id="screen-container">
+                <div id="screen-bezel">
+                    <div id="screen-label">DOT MATRIX WITH STEREO SOUND</div>
+                    <canvas id="screen" width="160" height="144"></canvas>
+                    <div id="game-title"></div>
+                </div>
+            </div>
+
+            <div id="controls">
+                <div id="dpad-area">
+                    <div id="dpad">
+                        <button class="dpad-btn dpad-up" data-btn="6" aria-label="Up">&#9650;</button>
+                        <button class="dpad-btn dpad-left" data-btn="5" aria-label="Left">&#9664;</button>
+                        <button class="dpad-btn dpad-center"></button>
+                        <button class="dpad-btn dpad-right" data-btn="4" aria-label="Right">&#9654;</button>
+                        <button class="dpad-btn dpad-down" data-btn="7" aria-label="Down">&#9660;</button>
+                    </div>
+                </div>
+
+                <div id="action-area">
+                    <div id="action-buttons">
+                        <button class="action-btn" id="btn-b" data-btn="1">B</button>
+                        <button class="action-btn" id="btn-a" data-btn="0">A</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="menu-buttons">
+                <button class="menu-btn" id="btn-select" data-btn="2">SELECT</button>
+                <button class="menu-btn" id="btn-start" data-btn="3">START</button>
+            </div>
+
+            <div id="toolbar">
+                <label id="rom-loader" class="toolbar-btn">
+                    LOAD ROM
+                    <input type="file" id="rom-input" accept=".gb,.gbc,.bin" hidden>
+                </label>
+                <button id="btn-reset" class="toolbar-btn">RESET</button>
+                <button id="btn-sound" class="toolbar-btn">SOUND: ON</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="wasm_exec.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

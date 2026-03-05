@@ -1,0 +1,311 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #2D2D2D;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    touch-action: manipulation;
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Loading screen */
+#loading-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    color: #9BBC0F;
+    font-size: 14px;
+}
+
+.loader {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #306230;
+    border-top-color: #9BBC0F;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.hidden { display: none !important; }
+
+/* Emulator container */
+#emulator {
+    width: 100%;
+    max-width: 420px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px;
+    gap: 4px;
+}
+
+/* Screen */
+#screen-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+#screen-bezel {
+    background: #8B8B73;
+    border-radius: 12px;
+    padding: 8px 12px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.5);
+}
+
+#screen-label {
+    font-size: 7px;
+    letter-spacing: 1.5px;
+    color: #4A4A3F;
+    margin-bottom: 4px;
+    font-weight: bold;
+}
+
+#screen {
+    width: 320px;
+    height: 288px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #9BBC0F;
+    border: 2px solid #4A4A3F;
+    border-radius: 4px;
+}
+
+#game-title {
+    font-size: 9px;
+    color: #4A4A3F;
+    margin-top: 4px;
+    height: 12px;
+    letter-spacing: 1px;
+}
+
+/* Controls */
+#controls {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+
+/* D-Pad */
+#dpad-area {
+    width: 140px;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#dpad {
+    display: grid;
+    grid-template-columns: 44px 44px 44px;
+    grid-template-rows: 44px 44px 44px;
+    gap: 0;
+}
+
+.dpad-btn {
+    background: #3A3A3A;
+    border: 1px solid #222;
+    color: #888;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    outline: none;
+}
+
+.dpad-btn:active, .dpad-btn.pressed {
+    background: #555;
+    color: #CCC;
+}
+
+.dpad-up { border-radius: 6px 6px 0 0; }
+.dpad-down { border-radius: 0 0 6px 6px; }
+.dpad-left { border-radius: 6px 0 0 6px; }
+.dpad-right { border-radius: 0 6px 6px 0; }
+.dpad-center {
+    background: #333;
+    border: 1px solid #222;
+    cursor: default;
+}
+
+/* Action buttons */
+#action-area {
+    width: 150px;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#action-buttons {
+    display: flex;
+    gap: 16px;
+    transform: rotate(-15deg);
+}
+
+.action-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #8B2252;
+    border: 2px solid #6B1242;
+    color: #FFF;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    outline: none;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-btn:active, .action-btn.pressed {
+    background: #A83272;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    transform: translateY(2px);
+}
+
+#btn-a {
+    margin-top: -20px;
+}
+
+/* Menu buttons (Select/Start) */
+#menu-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.menu-btn {
+    width: 60px;
+    height: 20px;
+    border-radius: 10px;
+    background: #555;
+    border: 1px solid #444;
+    color: #AAA;
+    font-size: 8px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    outline: none;
+    transform: rotate(-25deg);
+}
+
+.menu-btn:active, .menu-btn.pressed {
+    background: #777;
+    color: #FFF;
+}
+
+/* Toolbar */
+#toolbar {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 4px 0;
+}
+
+.toolbar-btn {
+    padding: 8px 14px;
+    background: #444;
+    border: 1px solid #555;
+    border-radius: 6px;
+    color: #9BBC0F;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    outline: none;
+}
+
+.toolbar-btn:hover {
+    background: #555;
+}
+
+.toolbar-btn:active {
+    background: #666;
+}
+
+/* Responsive scaling */
+@media (max-height: 700px) {
+    #screen { width: 256px; height: 230px; }
+    #dpad { grid-template-columns: 38px 38px 38px; grid-template-rows: 38px 38px 38px; }
+    #dpad-area { width: 120px; height: 120px; }
+    #action-area { width: 130px; height: 120px; }
+    .action-btn { width: 48px; height: 48px; font-size: 14px; }
+    #btn-a { margin-top: -16px; }
+}
+
+@media (max-height: 580px) {
+    #screen { width: 208px; height: 187px; }
+    #screen-bezel { padding: 4px 8px 4px; }
+    #screen-label { display: none; }
+    #game-title { display: none; }
+    #dpad { grid-template-columns: 34px 34px 34px; grid-template-rows: 34px 34px 34px; }
+    #dpad-area { width: 110px; height: 110px; }
+    #action-area { width: 120px; height: 110px; }
+    .action-btn { width: 44px; height: 44px; font-size: 13px; }
+    #btn-a { margin-top: -14px; }
+    .toolbar-btn { padding: 6px 10px; font-size: 10px; }
+}
+
+/* Landscape mode */
+@media (orientation: landscape) and (max-height: 500px) {
+    #emulator {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 100%;
+        padding: 4px;
+        gap: 4px;
+    }
+    #screen-container { order: 1; width: auto; }
+    #screen { width: 192px; height: 173px; }
+    #screen-bezel { padding: 4px 6px; }
+    #screen-label { display: none; }
+    #game-title { display: none; }
+    #controls { order: 2; width: auto; flex-direction: column; gap: 4px; }
+    #menu-buttons { order: 3; width: 100%; }
+    #toolbar { order: 4; width: 100%; }
+}
+
+/* Desktop */
+@media (min-width: 768px) and (min-height: 700px) {
+    #screen { width: 480px; height: 432px; }
+    #screen-bezel { padding: 12px 16px 8px; border-radius: 16px; }
+}
