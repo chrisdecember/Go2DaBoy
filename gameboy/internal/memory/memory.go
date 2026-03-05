@@ -16,12 +16,18 @@ type Bus struct {
 	Timer  *timer.Timer
 	Joypad *joypad.Joypad
 
-	wram [0x2000]uint8 // Work RAM (8KB)
-	hram [0x7F]uint8   // High RAM (127 bytes)
-	ie   uint8         // Interrupt Enable (0xFFFF)
-	ifReg uint8        // Interrupt Flag (0xFF0F)
+	wram  [0x2000]uint8 // Work RAM (8KB)
+	hram  [0x7F]uint8   // High RAM (127 bytes)
+	ie    uint8         // Interrupt Enable (0xFFFF)
+	ifReg uint8         // Interrupt Flag (0xFF0F)
 
 	serial [2]uint8 // 0xFF01-0xFF02 Serial transfer (stub)
+
+	// DMA state
+	dmaActive  bool
+	dmaSource  uint16
+	dmaIndex   uint8
+	dmaCycles  int
 }
 
 func New(p *ppu.PPU, a *apu.APU, t *timer.Timer, j *joypad.Joypad) *Bus {
@@ -40,6 +46,9 @@ func (b *Bus) Reset() {
 	b.ie = 0
 	b.ifReg = 0xE1
 	b.serial = [2]uint8{}
+	b.dmaActive = false
+	b.dmaIndex = 0
+	b.dmaCycles = 0
 }
 
 // RequestInterrupt sets a bit in the IF register
@@ -57,99 +66,132 @@ func (b *Bus) GetIE() uint8 {
 	return b.ie
 }
 
-func (b *Bus) Read(addr uint16) uint8 {
+// StepDMA advances DMA by the given T-cycles
+func (b *Bus) StepDMA(cycles int) {
+	if !b.dmaActive {
+		return
+	}
+
+	b.dmaCycles += cycles
+	for b.dmaCycles >= 4 && b.dmaIndex < 0xA0 {
+		b.dmaCycles -= 4
+		// Read from source (using direct read to bypass DMA restrictions)
+		val := b.dmaRead(b.dmaSource + uint16(b.dmaIndex))
+		b.PPU.DirectWriteOAM(b.dmaIndex, val)
+		b.dmaIndex++
+	}
+
+	if b.dmaIndex >= 0xA0 {
+		b.dmaActive = false
+	}
+}
+
+// dmaRead reads bypassing DMA access restrictions
+func (b *Bus) dmaRead(addr uint16) uint8 {
 	switch {
 	case addr < 0x8000:
-		// ROM (cartridge)
+		if b.Cart != nil {
+			return b.Cart.MBC.ReadROM(addr)
+		}
+		return 0xFF
+	case addr < 0xA000:
+		return b.PPU.VRAM[addr-0x8000]
+	case addr < 0xC000:
+		if b.Cart != nil {
+			return b.Cart.MBC.ReadRAM(addr)
+		}
+		return 0xFF
+	case addr < 0xE000:
+		return b.wram[addr-0xC000]
+	default:
+		return 0xFF
+	}
+}
+
+func (b *Bus) Read(addr uint16) uint8 {
+	// During DMA, only HRAM and I/O are accessible
+	if b.dmaActive && addr < 0xFF80 && addr >= 0xFE00 {
+		return 0xFF
+	}
+
+	switch {
+	case addr < 0x8000:
 		if b.Cart != nil {
 			return b.Cart.MBC.ReadROM(addr)
 		}
 		return 0xFF
 
 	case addr < 0xA000:
-		// VRAM
 		return b.PPU.ReadVRAM(addr - 0x8000)
 
 	case addr < 0xC000:
-		// External RAM (cartridge)
 		if b.Cart != nil {
 			return b.Cart.MBC.ReadRAM(addr)
 		}
 		return 0xFF
 
 	case addr < 0xE000:
-		// Work RAM
 		return b.wram[addr-0xC000]
 
 	case addr < 0xFE00:
-		// Echo RAM (mirror of WRAM)
 		return b.wram[addr-0xE000]
 
 	case addr < 0xFEA0:
-		// OAM
 		return b.PPU.ReadOAM(addr - 0xFE00)
 
 	case addr < 0xFF00:
-		// Unusable
 		return 0xFF
 
 	case addr < 0xFF80:
-		// I/O Registers
 		return b.readIO(addr)
 
 	case addr < 0xFFFF:
-		// High RAM
 		return b.hram[addr-0xFF80]
 
 	default:
-		// 0xFFFF - Interrupt Enable
 		return b.ie
 	}
 }
 
 func (b *Bus) Write(addr uint16, value uint8) {
+	// During DMA, only HRAM and I/O are accessible
+	if b.dmaActive && addr < 0xFF80 && addr >= 0xFE00 {
+		return
+	}
+
 	switch {
 	case addr < 0x8000:
-		// ROM writes go to MBC for bank switching
 		if b.Cart != nil {
 			b.Cart.MBC.WriteROM(addr, value)
 		}
 
 	case addr < 0xA000:
-		// VRAM
 		b.PPU.WriteVRAM(addr-0x8000, value)
 
 	case addr < 0xC000:
-		// External RAM
 		if b.Cart != nil {
 			b.Cart.MBC.WriteRAM(addr, value)
 		}
 
 	case addr < 0xE000:
-		// Work RAM
 		b.wram[addr-0xC000] = value
 
 	case addr < 0xFE00:
-		// Echo RAM
 		b.wram[addr-0xE000] = value
 
 	case addr < 0xFEA0:
-		// OAM
 		b.PPU.WriteOAM(addr-0xFE00, value)
 
 	case addr < 0xFF00:
-		// Unusable - ignore
+		// Unusable
 
 	case addr < 0xFF80:
-		// I/O Registers
 		b.writeIO(addr, value)
 
 	case addr < 0xFFFF:
-		// High RAM
 		b.hram[addr-0xFF80] = value
 
 	default:
-		// 0xFFFF - Interrupt Enable
 		b.ie = value
 	}
 }
@@ -202,22 +244,21 @@ func (b *Bus) writeIO(addr uint16, value uint8) {
 
 	case addr >= 0xFF40 && addr <= 0xFF4B:
 		b.PPU.Write(addr, value)
-		// Handle DMA
 		if addr == 0xFF46 {
-			b.doDMA(value)
+			b.startDMA(value)
 		}
 
 	case addr == 0xFF50:
-		// Boot ROM disable - not implemented (we skip boot ROM)
+		// Boot ROM disable
 	}
 }
 
-// doDMA performs OAM DMA transfer
-func (b *Bus) doDMA(value uint8) {
-	source := uint16(value) << 8
-	for i := uint8(0); i < 0xA0; i++ {
-		b.PPU.DirectWriteOAM(i, b.Read(source+uint16(i)))
-	}
+// startDMA begins an OAM DMA transfer (takes 160 T-cycles)
+func (b *Bus) startDMA(value uint8) {
+	b.dmaActive = true
+	b.dmaSource = uint16(value) << 8
+	b.dmaIndex = 0
+	b.dmaCycles = 0
 }
 
 // ReadWord reads a 16-bit word (little endian)

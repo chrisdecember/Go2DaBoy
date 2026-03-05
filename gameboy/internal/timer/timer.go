@@ -5,11 +5,12 @@ package timer
 // TIMA (0xFF05) increments at a rate specified by TAC and triggers
 // an interrupt on overflow, reloading from TMA.
 type Timer struct {
-	div      uint16 // Internal 16-bit counter; upper 8 bits = DIV register
-	tima     uint8  // Timer counter (0xFF05)
-	tma      uint8  // Timer modulo (0xFF06)
-	tac      uint8  // Timer control (0xFF07)
-	overflow bool
+	div          uint16 // Internal 16-bit counter; upper 8 bits = DIV register
+	tima         uint8  // Timer counter (0xFF05)
+	tma          uint8  // Timer modulo (0xFF06)
+	tac          uint8  // Timer control (0xFF07)
+	overflowTick bool   // TIMA overflow delay (reloads on next cycle)
+	reloaded     bool   // Whether TIMA was just reloaded from TMA
 }
 
 func New() *Timer {
@@ -21,7 +22,8 @@ func (t *Timer) Reset() {
 	t.tima = 0
 	t.tma = 0
 	t.tac = 0
-	t.overflow = false
+	t.overflowTick = false
+	t.reloaded = false
 }
 
 func (t *Timer) Read(addr uint16) uint8 {
@@ -41,21 +43,66 @@ func (t *Timer) Read(addr uint16) uint8 {
 func (t *Timer) Write(addr uint16, value uint8) {
 	switch addr {
 	case 0xFF04:
-		// Writing any value resets DIV to 0
+		// Writing any value resets DIV to 0.
+		// If the selected TAC bit was high, resetting causes a falling edge
+		// which can trigger a TIMA increment.
+		if t.tac&0x04 != 0 {
+			bit := t.tacBit()
+			if t.div&bit != 0 {
+				t.incrementTIMA()
+			}
+		}
 		t.div = 0
 	case 0xFF05:
-		t.tima = value
-		t.overflow = false
+		// Writing to TIMA during the overflow cycle cancels the reload
+		if !t.reloaded {
+			t.tima = value
+		}
+		t.overflowTick = false
 	case 0xFF06:
 		t.tma = value
+		// If TIMA was just reloaded from TMA, update it
+		if t.reloaded {
+			t.tima = value
+		}
 	case 0xFF07:
+		oldTac := t.tac
 		t.tac = value & 0x07
+
+		// Changing TAC can cause a falling edge if the old selected bit was 1
+		// and either timer is now disabled or new selected bit is 0
+		if oldTac&0x04 != 0 {
+			oldBit := t.tacBitForClock(oldTac & 0x03)
+			oldSelected := t.div&oldBit != 0
+
+			if value&0x04 != 0 {
+				newBit := t.tacBitForClock(value & 0x03)
+				newSelected := t.div&newBit != 0
+				if oldSelected && !newSelected {
+					t.incrementTIMA()
+				}
+			} else if oldSelected {
+				// Timer was disabled while selected bit was high
+				t.incrementTIMA()
+			}
+		}
 	}
 }
 
-// tacBit returns the bit position in DIV that triggers TIMA increment
+func (t *Timer) incrementTIMA() {
+	t.tima++
+	if t.tima == 0 {
+		t.overflowTick = true
+	}
+}
+
+// tacBit returns the bit position in DIV for the current TAC clock select
 func (t *Timer) tacBit() uint16 {
-	switch t.tac & 0x03 {
+	return t.tacBitForClock(t.tac & 0x03)
+}
+
+func (t *Timer) tacBitForClock(clock uint8) uint16 {
+	switch clock {
 	case 0:
 		return 1 << 9 // 4096 Hz
 	case 1:
@@ -73,18 +120,24 @@ func (t *Timer) tacBit() uint16 {
 func (t *Timer) Step(cycles int) bool {
 	interrupt := false
 	for i := 0; i < cycles; i++ {
+		t.reloaded = false
+
+		// Handle TIMA overflow (delayed by one cycle)
+		if t.overflowTick {
+			t.overflowTick = false
+			t.tima = t.tma
+			t.reloaded = true
+			interrupt = true
+		}
+
 		prevDiv := t.div
 		t.div++
 
 		if t.tac&0x04 != 0 {
 			bit := t.tacBit()
-			// Falling edge detector
+			// Falling edge detector on the AND of the selected bit and timer enable
 			if prevDiv&bit != 0 && t.div&bit == 0 {
-				t.tima++
-				if t.tima == 0 {
-					t.tima = t.tma
-					interrupt = true
-				}
+				t.incrementTIMA()
 			}
 		}
 	}

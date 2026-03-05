@@ -459,7 +459,18 @@ func (c *CPU) execute(opcode uint8) int {
 		c.Bus.Write(c.Regs.GetHL(), c.Regs.L)
 		return 8
 	case 0x76: // HALT
-		c.halted = true
+		if c.ime {
+			c.halted = true
+		} else {
+			// Check for HALT bug: IME=0 but interrupts pending
+			if c.Bus.GetIF()&c.Bus.GetIE()&0x1F != 0 {
+				// HALT bug: don't enter HALT, next fetch doesn't increment PC
+				c.haltBug = true
+			} else {
+				// Normal HALT with IME=0: halt until interrupt pending
+				c.halted = true
+			}
+		}
 		return 4
 	case 0x77:
 		c.Bus.Write(c.Regs.GetHL(), c.Regs.A)

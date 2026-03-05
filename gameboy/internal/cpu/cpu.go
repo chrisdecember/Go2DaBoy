@@ -10,6 +10,7 @@ type CPU struct {
 	stopped bool
 	ime     bool // Interrupt Master Enable
 	eiDelay bool // EI enables IME after next instruction
+	haltBug bool // HALT bug: next PC increment is skipped
 }
 
 func New(bus *memory.Bus) *CPU {
@@ -25,17 +26,13 @@ func (c *CPU) Reset() {
 	c.stopped = false
 	c.ime = false
 	c.eiDelay = false
+	c.haltBug = false
 }
 
 // Step executes one instruction and returns T-cycles consumed
 func (c *CPU) Step() int {
-	// Handle pending EI
-	if c.eiDelay {
-		c.eiDelay = false
-		c.ime = true
-	}
-
-	// Handle interrupts
+	// Handle interrupts BEFORE EI takes effect
+	// This ensures the instruction after EI executes before interrupts fire
 	if cycles := c.handleInterrupts(); cycles > 0 {
 		return cycles
 	}
@@ -47,7 +44,16 @@ func (c *CPU) Step() int {
 
 	// Fetch and execute opcode
 	opcode := c.fetchByte()
-	return c.execute(opcode)
+	cycles := c.execute(opcode)
+
+	// Apply pending EI AFTER instruction execution
+	// EI delays IME enable by one instruction per Pan Docs
+	if c.eiDelay {
+		c.eiDelay = false
+		c.ime = true
+	}
+
+	return cycles
 }
 
 func (c *CPU) handleInterrupts() int {
@@ -88,7 +94,12 @@ func (c *CPU) handleInterrupts() int {
 // fetchByte reads a byte at PC and increments PC
 func (c *CPU) fetchByte() uint8 {
 	val := c.Bus.Read(c.Regs.PC)
-	c.Regs.PC++
+	if c.haltBug {
+		// HALT bug: PC fails to increment, causing the next byte to be read twice
+		c.haltBug = false
+	} else {
+		c.Regs.PC++
+	}
 	return val
 }
 
@@ -99,10 +110,12 @@ func (c *CPU) fetchWord() uint16 {
 	return hi<<8 | lo
 }
 
-// Stack operations
+// Stack operations - push writes high byte first (SP-1), then low byte (SP-2)
 func (c *CPU) push(value uint16) {
-	c.Regs.SP -= 2
-	c.Bus.WriteWord(c.Regs.SP, value)
+	c.Regs.SP--
+	c.Bus.Write(c.Regs.SP, uint8(value>>8)) // High byte
+	c.Regs.SP--
+	c.Bus.Write(c.Regs.SP, uint8(value&0xFF)) // Low byte
 }
 
 func (c *CPU) pop() uint16 {
@@ -329,14 +342,17 @@ func (c *CPU) bit(b uint8, val uint8) {
 func (c *CPU) daa() {
 	a := c.Regs.A
 	if !c.Regs.GetFlag(FlagN) {
+		// After addition: correct low nibble FIRST, then high nibble
+		// Low nibble must be checked on original value before high nibble adjustment
+		if c.Regs.GetFlag(FlagH) || (a&0x0F) > 0x09 {
+			a += 0x06
+		}
 		if c.Regs.GetFlag(FlagC) || a > 0x99 {
 			a += 0x60
 			c.Regs.SetFlag(FlagC, true)
 		}
-		if c.Regs.GetFlag(FlagH) || (a&0x0F) > 0x09 {
-			a += 0x06
-		}
 	} else {
+		// After subtraction
 		if c.Regs.GetFlag(FlagC) {
 			a -= 0x60
 		}
