@@ -71,7 +71,7 @@ func New() *PPU {
 
 func (p *PPU) Reset() {
 	p.LCDC = 0x91
-	p.STAT = 0x85 // Mode 1 (VBlank) initially after boot
+	p.STAT = 0x82 // Mode 2 (OAM) initially, matching p.mode
 	p.SCY = 0
 	p.SCX = 0
 	p.LY = 0
@@ -93,10 +93,7 @@ func (p *PPU) Read(addr uint16) uint8 {
 	case 0xFF40:
 		return p.LCDC
 	case 0xFF41:
-		stat := (p.STAT & 0xF8) | p.mode
-		if p.LY == p.LYC {
-			stat |= 0x04
-		}
+		stat := p.STAT | 0x80 // Bit 7 always reads as 1
 		return stat
 	case 0xFF42:
 		return p.SCY
@@ -135,6 +132,7 @@ func (p *PPU) Write(addr uint16, value uint8) {
 			p.mode = ModeHBlank
 			p.STAT = p.STAT & 0xFC
 			p.windowLine = 0
+			p.prevStatLine = false
 		}
 	case 0xFF41:
 		p.STAT = (value & 0xF8) | (p.STAT & 0x07) // Lower 3 bits read-only
@@ -183,7 +181,11 @@ func (p *PPU) ReadOAM(addr uint16) uint8 {
 	if (p.mode == ModeOAM || p.mode == ModeTransfer) && p.LCDC&0x80 != 0 {
 		return 0xFF
 	}
-	return p.OAM[addr&0xFF]
+	offset := addr & 0xFF
+	if offset >= 0xA0 {
+		return 0xFF
+	}
+	return p.OAM[offset]
 }
 
 // WriteOAM writes to object attribute memory
@@ -191,7 +193,11 @@ func (p *PPU) WriteOAM(addr uint16, value uint8) {
 	if (p.mode == ModeOAM || p.mode == ModeTransfer) && p.LCDC&0x80 != 0 {
 		return
 	}
-	p.OAM[addr&0xFF] = value
+	offset := addr & 0xFF
+	if offset >= 0xA0 {
+		return
+	}
+	p.OAM[offset] = value
 }
 
 // DirectWriteOAM writes to OAM bypassing mode checks (for DMA)
@@ -233,14 +239,7 @@ func (p *PPU) tick() uint8 {
 		if p.modeClock >= transferCycles {
 			p.modeClock -= transferCycles
 			p.mode = ModeHBlank
-
-			// Render scanline
 			p.renderScanline()
-
-			// STAT HBlank interrupt
-			if p.STAT&0x08 != 0 {
-				interrupts |= p.checkStatIRQ()
-			}
 		}
 
 	case ModeHBlank:
@@ -252,21 +251,9 @@ func (p *PPU) tick() uint8 {
 				p.mode = ModeVBlank
 				interrupts |= 0x01 // VBlank interrupt
 				p.frameReady = true
-
-				// STAT VBlank interrupt
-				if p.STAT&0x10 != 0 {
-					interrupts |= p.checkStatIRQ()
-				}
 			} else {
 				p.mode = ModeOAM
-				// STAT OAM interrupt
-				if p.STAT&0x20 != 0 {
-					interrupts |= p.checkStatIRQ()
-				}
 			}
-
-			// LYC check
-			interrupts |= p.checkLYC()
 		}
 
 	case ModeVBlank:
@@ -278,34 +265,22 @@ func (p *PPU) tick() uint8 {
 				p.LY = 0
 				p.mode = ModeOAM
 				p.windowLine = 0
-
-				// STAT OAM interrupt
-				if p.STAT&0x20 != 0 {
-					interrupts |= p.checkStatIRQ()
-				}
 			}
-
-			// LYC check
-			interrupts |= p.checkLYC()
 		}
 	}
 
-	// Update STAT mode bits
+	// Update STAT mode and coincidence flag
 	p.STAT = (p.STAT & 0xFC) | p.mode
-
-	return interrupts
-}
-
-func (p *PPU) checkLYC() uint8 {
 	if p.LY == p.LYC {
 		p.STAT |= 0x04
-		if p.STAT&0x40 != 0 {
-			return p.checkStatIRQ()
-		}
 	} else {
 		p.STAT &^= 0x04
 	}
-	return 0
+
+	// Evaluate STAT IRQ line once per tick after all state changes
+	interrupts |= p.checkStatIRQ()
+
+	return interrupts
 }
 
 func (p *PPU) checkStatIRQ() uint8 {
@@ -399,8 +374,8 @@ func (p *PPU) renderBackground(bgPriority *[ScreenWidth]uint8) {
 		// Get tile data address
 		var tileDataAddr uint16
 		if useSigned {
-			// Signed addressing: 0x8800 base, tile index is signed
-			tileDataAddr = uint16(0x1000) + uint16(int16(int8(tileIdx))+128)*16
+			// Signed addressing: base $9000 (VRAM 0x1000), tile index is signed
+			tileDataAddr = uint16(int(0x1000) + int(int8(tileIdx))*16)
 		} else {
 			// Unsigned addressing: 0x8000 base
 			tileDataAddr = uint16(tileIdx) * 16
@@ -466,7 +441,7 @@ func (p *PPU) renderWindow(bgPriority *[ScreenWidth]uint8) {
 
 		var tileDataAddr uint16
 		if useSigned {
-			tileDataAddr = uint16(0x1000) + uint16(int16(int8(tileIdx))+128)*16
+			tileDataAddr = uint16(int(0x1000) + int(int8(tileIdx))*16)
 		} else {
 			tileDataAddr = uint16(tileIdx) * 16
 		}
