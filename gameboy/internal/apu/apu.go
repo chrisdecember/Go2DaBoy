@@ -211,6 +211,17 @@ func (a *APU) Read(addr uint16) uint8 {
 
 func (a *APU) Write(addr uint16, value uint8) {
 	if !a.enabled && addr != 0xFF26 && !(addr >= 0xFF30 && addr <= 0xFF3F) {
+		// DMG allows writing length counters when APU is off
+		switch addr {
+		case 0xFF11:
+			a.ch1.length = 64 - int(value&0x3F)
+		case 0xFF16:
+			a.ch2.length = 64 - int(value&0x3F)
+		case 0xFF1B:
+			a.ch3.length = 256 - int(value)
+		case 0xFF20:
+			a.ch4.length = 64 - int(value&0x3F)
+		}
 		return
 	}
 
@@ -306,11 +317,11 @@ func (a *APU) Write(addr uint16, value uint8) {
 		wasEnabled := a.enabled
 		a.enabled = value&0x80 != 0
 		if wasEnabled && !a.enabled {
-			// Turning off APU clears all registers
+			// Turning off APU clears all registers (wave RAM preserved)
 			a.ch1 = squareChannel{}
 			a.ch2 = squareChannel{}
-			a.ch3.enabled = false
-			a.ch3.dacEnabled = false
+			waveRAM := a.ch3.waveRAM // Preserve wave RAM on DMG
+			a.ch3 = waveChannel{waveRAM: waveRAM}
 			a.ch4 = noiseChannel{lfsr: 0x7FFF}
 			a.nr50 = 0
 			a.nr51 = 0
