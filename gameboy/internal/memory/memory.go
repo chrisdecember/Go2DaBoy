@@ -112,8 +112,8 @@ func (b *Bus) dmaRead(addr uint16) uint8 {
 }
 
 func (b *Bus) Read(addr uint16) uint8 {
-	// During DMA, only HRAM and I/O are accessible
-	if b.dmaActive && addr < 0xFF80 && addr >= 0xFE00 {
+	// During DMA, CPU can only access HRAM (0xFF80-0xFFFE) and IE (0xFFFF)
+	if b.dmaActive && addr < 0xFF80 {
 		return 0xFF
 	}
 
@@ -157,8 +157,8 @@ func (b *Bus) Read(addr uint16) uint8 {
 }
 
 func (b *Bus) Write(addr uint16, value uint8) {
-	// During DMA, only HRAM and I/O are accessible
-	if b.dmaActive && addr < 0xFF80 && addr >= 0xFE00 {
+	// During DMA, CPU can only access HRAM (0xFF80-0xFFFE) and IE (0xFFFF)
+	if b.dmaActive && addr < 0xFF80 {
 		return
 	}
 
@@ -266,12 +266,12 @@ func (b *Bus) writeIO(addr uint16, value uint8) {
 	}
 }
 
-// startDMA begins an OAM DMA transfer (takes 160 T-cycles)
+// startDMA begins an OAM DMA transfer (160 bytes, 640 T-cycles + 8 T-cycle startup delay)
 func (b *Bus) startDMA(value uint8) {
 	b.dmaActive = true
 	b.dmaSource = uint16(value) << 8
 	b.dmaIndex = 0
-	b.dmaCycles = 0
+	b.dmaCycles = -8 // 2 M-cycle startup delay before first byte transfer
 }
 
 // ReadWord reads a 16-bit word (little endian)
