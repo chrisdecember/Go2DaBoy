@@ -17,12 +17,11 @@ const (
 
 // Scanline timing (T-cycles)
 const (
-	oamCycles      = 80
-	transferCycles = 172 // Minimum; actual varies with sprites
-	hblankCycles   = 204 // Maximum; fills remainder of 456
-	scanlineCycles = 456
-	vblankLines    = 10
-	totalLines     = 154
+	oamCycles         = 80
+	transferCyclesMin = 172 // Minimum; actual varies with sprites and SCX
+	scanlineCycles    = 456
+	vblankLines       = 10
+	totalLines        = 154
 )
 
 // DMG palette colors (classic green)
@@ -60,6 +59,8 @@ type PPU struct {
 	frameReady    bool
 	statIRQ       bool
 	prevStatLine  bool
+	transferCycles int // Variable Mode 3 duration for current scanline
+	scanlineSprites int // Number of sprites found on current scanline during OAM scan
 
 	// Frame buffer (RGBA)
 	FrameBuffer [FrameBufferSize]uint8
@@ -85,6 +86,7 @@ func (p *PPU) Reset() {
 	p.modeClock = 0
 	p.windowLine = 0
 	p.frameReady = false
+	p.transferCycles = transferCyclesMin
 }
 
 // Read handles PPU register reads
@@ -233,16 +235,20 @@ func (p *PPU) tick() uint8 {
 		if p.modeClock >= oamCycles {
 			p.modeClock -= oamCycles
 			p.mode = ModeTransfer
+			// Compute variable Mode 3 duration based on sprite count and SCX
+			p.scanlineSprites = p.countSpritesOnLine()
+			p.transferCycles = transferCyclesMin + int(p.SCX%8) + p.scanlineSprites*6
 		}
 
 	case ModeTransfer:
-		if p.modeClock >= transferCycles {
-			p.modeClock -= transferCycles
+		if p.modeClock >= p.transferCycles {
+			p.modeClock -= p.transferCycles
 			p.mode = ModeHBlank
 			p.renderScanline()
 		}
 
 	case ModeHBlank:
+		hblankCycles := scanlineCycles - oamCycles - p.transferCycles
 		if p.modeClock >= hblankCycles {
 			p.modeClock -= hblankCycles
 			p.LY++
@@ -314,6 +320,22 @@ func (p *PPU) IsFrameReady() bool {
 		return true
 	}
 	return false
+}
+
+// countSpritesOnLine counts visible sprites on the current scanline (max 10)
+func (p *PPU) countSpritesOnLine() int {
+	spriteHeight := 8
+	if p.LCDC&0x04 != 0 {
+		spriteHeight = 16
+	}
+	count := 0
+	for i := 0; i < 40 && count < 10; i++ {
+		sy := int(p.OAM[i*4]) - 16
+		if int(p.LY) >= sy && int(p.LY) < sy+spriteHeight {
+			count++
+		}
+	}
+	return count
 }
 
 // renderScanline renders the current scanline to the frame buffer
