@@ -21,7 +21,10 @@ type Bus struct {
 	ie    uint8         // Interrupt Enable (0xFFFF)
 	ifReg uint8         // Interrupt Flag (0xFF0F)
 
-	serial [2]uint8 // 0xFF01-0xFF02 Serial transfer (stub)
+	serial [2]uint8 // 0xFF01-0xFF02 Serial transfer
+
+	// Serial output callback (for test harness / link cable)
+	SerialCallback func(byte)
 
 	// DMA state
 	dmaActive  bool
@@ -232,6 +235,16 @@ func (b *Bus) writeIO(addr uint16, value uint8) {
 		b.serial[0] = value
 	case addr == 0xFF02:
 		b.serial[1] = value
+		// When bit 7 is set (transfer start) with internal clock (bit 0),
+		// auto-complete the transfer for Blargg test compatibility
+		if value&0x81 == 0x81 {
+			if b.SerialCallback != nil {
+				b.SerialCallback(b.serial[0])
+			}
+			b.serial[0] = 0xFF // No link cable connected
+			b.serial[1] &= 0x7F // Clear transfer start flag
+			b.ifReg |= 0x08     // Request serial interrupt (bit 3)
+		}
 
 	case addr >= 0xFF04 && addr <= 0xFF07:
 		b.Timer.Write(addr, value)
