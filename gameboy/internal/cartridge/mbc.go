@@ -131,6 +131,71 @@ func (m *MBC1) WriteRAM(addr uint16, value uint8) {
 	}
 }
 
+// --- MBC2: up to 256KB ROM / 512x4-bit RAM ---
+
+type MBC2 struct {
+	rom        []byte
+	ram        [512]uint8 // 512 x 4-bit RAM (only lower nibble used)
+	romBank    uint8
+	ramEnabled bool
+}
+
+func NewMBC2(rom []byte) *MBC2 {
+	return &MBC2{
+		rom:     rom,
+		romBank: 1,
+	}
+}
+
+func (m *MBC2) ReadROM(addr uint16) uint8 {
+	if addr < 0x4000 {
+		if int(addr) < len(m.rom) {
+			return m.rom[addr]
+		}
+		return 0xFF
+	}
+	offset := int(m.romBank)*0x4000 + int(addr-0x4000)
+	if len(m.rom) > 0 {
+		offset %= len(m.rom)
+		return m.rom[offset]
+	}
+	return 0xFF
+}
+
+func (m *MBC2) WriteROM(addr uint16, value uint8) {
+	// MBC2 uses bit 8 of address to distinguish RAM enable vs ROM bank
+	if addr < 0x4000 {
+		if addr&0x0100 == 0 {
+			// RAM enable (bit 8 = 0)
+			m.ramEnabled = (value & 0x0F) == 0x0A
+		} else {
+			// ROM bank (bit 8 = 1), 4-bit register
+			bank := value & 0x0F
+			if bank == 0 {
+				bank = 1
+			}
+			m.romBank = bank
+		}
+	}
+}
+
+func (m *MBC2) ReadRAM(addr uint16) uint8 {
+	if !m.ramEnabled {
+		return 0xFF
+	}
+	// MBC2 has 512 addresses, mapped to A000-A1FF, with echo up to BFFF
+	offset := int(addr-0xA000) & 0x1FF
+	return m.ram[offset] | 0xF0 // Upper nibble reads as 1
+}
+
+func (m *MBC2) WriteRAM(addr uint16, value uint8) {
+	if !m.ramEnabled {
+		return
+	}
+	offset := int(addr-0xA000) & 0x1FF
+	m.ram[offset] = value & 0x0F // Only lower nibble is writable
+}
+
 // --- MBC3: up to 2MB ROM / 32KB RAM + RTC ---
 
 type MBC3 struct {
@@ -169,7 +234,8 @@ func (m *MBC3) ReadROM(addr uint16) uint8 {
 		bank = 1
 	}
 	offset := bank*0x4000 + int(addr-0x4000)
-	if offset < len(m.rom) {
+	if len(m.rom) > 0 {
+		offset %= len(m.rom)
 		return m.rom[offset]
 	}
 	return 0xFF

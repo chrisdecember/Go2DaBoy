@@ -109,9 +109,9 @@ func (c *Cartridge) initMBC() {
 	case 0x03: // MBC1+RAM+BATTERY
 		c.MBC = NewMBC1(c.Data, ramSize)
 	case 0x05: // MBC2
-		c.MBC = NewMBC1(c.Data, 512) // MBC2 has built-in 512 bytes
+		c.MBC = NewMBC2(c.Data)
 	case 0x06: // MBC2+BATTERY
-		c.MBC = NewMBC1(c.Data, 512)
+		c.MBC = NewMBC2(c.Data)
 	case 0x08: // ROM+RAM
 		c.MBC = NewMBC0(c.Data)
 	case 0x09: // ROM+RAM+BATTERY
