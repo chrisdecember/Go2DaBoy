@@ -21,12 +21,12 @@ html, body {
     width: 100%;
     height: 100%;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
 }
 
-/* Loading screen */
+/* ── Loading ───────────────────────────────────── */
+
 #loading-screen {
     display: flex;
     flex-direction: column;
@@ -45,288 +45,660 @@ html, body {
     animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .hidden { display: none !important; }
 
-/* Emulator container */
-#emulator {
-    width: 100%;
-    max-width: 420px;
-    height: 100%;
+/* ── Game Boy container ────────────────────────── */
+
+#gameboy {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    padding: 8px;
-    gap: 4px;
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px;
 }
 
-/* Screen */
-#screen-container {
+/* ── Shell body ────────────────────────────────── */
+
+#gb-shell {
+    background: linear-gradient(170deg, #C8C8BA 0%, #BABAD0 50%, #B8B8A8 100%);
+    border-radius: 10px 10px 10px 46px;
+    max-width: 400px;
+    width: 94%;
+    padding: 10px 14px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow:
+        0 6px 20px rgba(0,0,0,0.6),
+        inset 0 1px 0 rgba(255,255,255,0.4),
+        inset 0 -1px 0 rgba(0,0,0,0.08);
+    position: relative;
+}
+
+/* ── Screen area ───────────────────────────────── */
+
+#screen-area {
     width: 100%;
+    position: relative;
     display: flex;
     justify-content: center;
-    flex-shrink: 0;
 }
 
+/* Power LED */
+#power-led {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #553333;
+    transition: all 0.3s;
+    z-index: 2;
+}
+
+#power-led.on {
+    background: #33DD33;
+    box-shadow: 0 0 6px 1px rgba(51, 221, 51, 0.6);
+}
+
+/* Screen bezel */
 #screen-bezel {
-    background: #8B8B73;
-    border-radius: 12px;
-    padding: 8px 12px 6px;
+    position: relative;
+    background: #7E7E70;
+    border-radius: 8px;
+    padding: 6px 12px 6px;
+    width: 82%;
+    box-shadow:
+        inset 0 2px 6px rgba(0,0,0,0.25),
+        0 1px 0 rgba(255,255,255,0.15);
+}
+
+/* Colored lines above screen (wine red + navy) */
+#bezel-lines {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.5);
+    gap: 2px;
+    padding: 0 12%;
+    margin-bottom: 4px;
 }
 
+.bezel-line {
+    height: 2px;
+    border-radius: 1px;
+}
+
+.line-wine { background: #6E2040; }
+.line-navy { background: #2E2E6E; }
+
 #screen-label {
-    font-size: 7px;
+    font-size: 6.5px;
     letter-spacing: 1.5px;
-    color: #4A4A3F;
+    color: #50504A;
+    text-align: center;
     margin-bottom: 4px;
     font-weight: bold;
 }
 
+/* Screen well (dark surround) */
+#screen-well {
+    background: #0F380F;
+    border-radius: 4px;
+    padding: 6px;
+    position: relative;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.6);
+}
+
 #screen {
-    width: 320px;
-    height: 288px;
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 160 / 144;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
     background: #9BBC0F;
-    border: 2px solid #4A4A3F;
-    border-radius: 4px;
+    border-radius: 2px;
 }
 
 #game-title {
-    font-size: 9px;
-    color: #4A4A3F;
-    margin-top: 4px;
-    height: 12px;
-    letter-spacing: 1px;
-}
-
-/* Controls */
-#controls {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 8px;
-    flex-shrink: 0;
-}
-
-/* D-Pad */
-#dpad-area {
-    width: 140px;
-    height: 140px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#dpad {
-    display: grid;
-    grid-template-columns: 44px 44px 44px;
-    grid-template-rows: 44px 44px 44px;
-    gap: 0;
-}
-
-.dpad-btn {
-    background: #3A3A3A;
-    border: 1px solid #222;
-    color: #888;
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    outline: none;
-}
-
-.dpad-btn:active, .dpad-btn.pressed {
-    background: #555;
-    color: #CCC;
-}
-
-.dpad-up { border-radius: 6px 6px 0 0; }
-.dpad-down { border-radius: 0 0 6px 6px; }
-.dpad-left { border-radius: 6px 0 0 6px; }
-.dpad-right { border-radius: 0 6px 6px 0; }
-.dpad-center {
-    background: #333;
-    border: 1px solid #222;
-    cursor: default;
-}
-
-/* Action buttons */
-#action-area {
-    width: 150px;
-    height: 140px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#action-buttons {
-    display: flex;
-    gap: 16px;
-    transform: rotate(-15deg);
-}
-
-.action-btn {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: #8B2252;
-    border: 2px solid #6B1242;
-    color: #FFF;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    outline: none;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.action-btn:active, .action-btn.pressed {
-    background: #A83272;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.4);
-    transform: translateY(2px);
-}
-
-#btn-a {
-    margin-top: -20px;
-}
-
-/* Menu buttons (Select/Start) */
-#menu-buttons {
-    display: flex;
-    gap: 20px;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.menu-btn {
-    width: 60px;
-    height: 20px;
-    border-radius: 10px;
-    background: #555;
-    border: 1px solid #444;
-    color: #AAA;
     font-size: 8px;
-    font-weight: bold;
-    letter-spacing: 1px;
-    cursor: pointer;
-    outline: none;
-    transform: rotate(-25deg);
+    color: #50504A;
+    text-align: center;
+    margin-top: 4px;
+    height: 11px;
+    letter-spacing: 0.5px;
 }
 
-.menu-btn:active, .menu-btn.pressed {
-    background: #777;
-    color: #FFF;
-}
-
-/* Toolbar */
-#toolbar {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    flex-shrink: 0;
-    padding: 4px 0;
-}
-
-.toolbar-btn {
-    padding: 8px 14px;
-    background: #444;
-    border: 1px solid #555;
-    border-radius: 6px;
-    color: #9BBC0F;
-    font-size: 11px;
-    font-weight: bold;
-    letter-spacing: 1px;
-    cursor: pointer;
-    outline: none;
-}
-
-.toolbar-btn:hover {
-    background: #555;
-}
-
-.toolbar-btn:active {
-    background: #666;
-}
-
-/* Fast-forward indicator */
+/* FF indicator */
 #ff-indicator {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 10px;
+    right: 10px;
     color: #0F380F;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     opacity: 0;
     transition: opacity 0.1s;
     pointer-events: none;
 }
 
-#ff-indicator.active {
-    opacity: 1;
+#ff-indicator.active { opacity: 1; }
+
+/* ── Brand ─────────────────────────────────────── */
+
+#brand {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 6px 0 4px;
+    padding-left: 4px;
+    align-self: flex-start;
+    margin-left: 8%;
 }
 
-#screen-bezel {
+#brand-sub {
+    font-size: 11px;
+    font-style: italic;
+    color: #30306C;
+    font-weight: 600;
+}
+
+#brand-main {
+    font-size: 20px;
+    font-weight: 900;
+    font-style: italic;
+    color: #2A2A60;
+    letter-spacing: 2px;
+}
+
+/* ── Controls: D-Pad + A/B ─────────────────────── */
+
+#controls {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+}
+
+/* ── D-Pad (cross shape) ──────────────────────── */
+
+#dpad-container {
+    width: 130px;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#dpad {
+    width: 112px;
+    height: 112px;
     position: relative;
 }
 
-/* Responsive scaling */
-@media (max-height: 700px) {
-    #screen { width: 256px; height: 230px; }
-    #dpad { grid-template-columns: 38px 38px 38px; grid-template-rows: 38px 38px 38px; }
-    #dpad-area { width: 120px; height: 120px; }
-    #action-area { width: 130px; height: 120px; }
-    .action-btn { width: 48px; height: 48px; font-size: 14px; }
-    #btn-a { margin-top: -16px; }
+/* Vertical bar of the cross */
+#dpad::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 38px;
+    height: 100%;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, #2E2E32, #262628);
+    border-radius: 6px;
+    box-shadow:
+        0 2px 0 rgba(0,0,0,0.3),
+        inset 0 1px 1px rgba(255,255,255,0.06);
 }
 
-@media (max-height: 580px) {
-    #screen { width: 208px; height: 187px; }
-    #screen-bezel { padding: 4px 8px 4px; }
-    #screen-label { display: none; }
-    #game-title { display: none; }
-    #dpad { grid-template-columns: 34px 34px 34px; grid-template-rows: 34px 34px 34px; }
-    #dpad-area { width: 110px; height: 110px; }
-    #action-area { width: 120px; height: 110px; }
-    .action-btn { width: 44px; height: 44px; font-size: 13px; }
-    #btn-a { margin-top: -14px; }
-    .toolbar-btn { padding: 6px 10px; font-size: 10px; }
+/* Horizontal bar of the cross */
+#dpad::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 38px;
+    transform: translateY(-50%);
+    background: linear-gradient(180deg, #2E2E32, #262628);
+    border-radius: 6px;
+    box-shadow:
+        0 2px 0 rgba(0,0,0,0.3),
+        inset 0 1px 1px rgba(255,255,255,0.06);
 }
 
-/* Landscape mode */
-@media (orientation: landscape) and (max-height: 500px) {
-    #emulator {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-        max-width: 100%;
-        padding: 4px;
-        gap: 4px;
-    }
-    #screen-container { order: 1; width: auto; }
-    #screen { width: 192px; height: 173px; }
-    #screen-bezel { padding: 4px 6px; }
+/* Center nub */
+.dpad-nub {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #1A1A1E, #222226);
+    z-index: 4;
+    pointer-events: none;
+}
+
+/* Touch/click targets on each arm */
+.dpad-btn {
+    position: absolute;
+    background: transparent;
+    border: none;
+    outline: none;
+    z-index: 3;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.dpad-up {
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 38px;
+    height: 37px;
+    border-radius: 6px 6px 0 0;
+}
+
+.dpad-down {
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 38px;
+    height: 37px;
+    border-radius: 0 0 6px 6px;
+}
+
+.dpad-left {
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 37px;
+    height: 38px;
+    border-radius: 6px 0 0 6px;
+}
+
+.dpad-right {
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 37px;
+    height: 38px;
+    border-radius: 0 6px 6px 0;
+}
+
+/* Pressed state — subtle highlight on the arm */
+.dpad-btn:active,
+.dpad-btn.pressed {
+    background: rgba(255,255,255,0.08);
+}
+
+/* ── A / B buttons ─────────────────────────────── */
+
+#ab-container {
+    width: 150px;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ab-group {
+    display: flex;
+    gap: 14px;
+    transform: rotate(-25deg);
+}
+
+.ab-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.ab-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #A82858, #8C2048);
+    border: none;
+    box-shadow:
+        0 3px 0 #6A1438,
+        0 4px 8px rgba(0,0,0,0.4),
+        inset 0 1px 2px rgba(255,255,255,0.15);
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.ab-btn:active,
+.ab-btn.pressed {
+    background: linear-gradient(145deg, #B83868, #982850);
+    box-shadow:
+        0 1px 0 #6A1438,
+        0 2px 4px rgba(0,0,0,0.4),
+        inset 0 1px 2px rgba(0,0,0,0.15);
+    transform: translateY(2px);
+}
+
+#btn-a {
+    margin-top: -22px;
+}
+
+.ab-label {
+    font-size: 10px;
+    font-weight: bold;
+    color: #5A2838;
+    letter-spacing: 1px;
+    transform: rotate(25deg);
+}
+
+/* ── Select / Start ────────────────────────────── */
+
+#ss-area {
+    display: flex;
+    gap: 28px;
+    justify-content: center;
+    margin: 4px 0 2px;
+    transform: rotate(-25deg);
+}
+
+.ss-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.ss-btn {
+    width: 48px;
+    height: 14px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #8A8A7C, #787868);
+    border: none;
+    box-shadow:
+        0 2px 0 #58584C,
+        inset 0 1px 1px rgba(255,255,255,0.15);
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.ss-btn:active,
+.ss-btn.pressed {
+    background: linear-gradient(180deg, #9A9A8C, #8A8A78);
+    box-shadow:
+        0 0 0 #58584C,
+        inset 0 1px 2px rgba(0,0,0,0.2);
+    transform: translateY(2px);
+}
+
+.ss-label {
+    font-size: 7px;
+    font-weight: bold;
+    color: #5A5A50;
+    letter-spacing: 1.5px;
+}
+
+/* ── Speaker grille ────────────────────────────── */
+
+#speaker {
+    position: absolute;
+    bottom: 22px;
+    right: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transform: rotate(-25deg);
+}
+
+.grille-slot {
+    width: 32px;
+    height: 3px;
+    border-radius: 2px;
+    background: #A0A090;
+    box-shadow: inset 0 1px 1px rgba(0,0,0,0.35);
+}
+
+/* ── Toolbar ───────────────────────────────────── */
+
+#toolbar {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 2px 0;
+}
+
+.toolbar-btn {
+    padding: 7px 12px;
+    background: #3A3A3A;
+    border: 1px solid #4A4A4A;
+    border-radius: 5px;
+    color: #9BBC0F;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    outline: none;
+}
+
+.toolbar-btn:hover { background: #4A4A4A; }
+.toolbar-btn:active { background: #555; }
+
+/* ── Controls modal ────────────────────────────── */
+
+#controls-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#modal-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.75);
+}
+
+#modal-content {
+    position: relative;
+    background: #333;
+    border-radius: 12px;
+    padding: 20px 24px;
+    max-width: 340px;
+    width: 90%;
+    color: #DDD;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+#modal-content h2 {
+    text-align: center;
+    margin-bottom: 14px;
+    font-size: 15px;
+    color: #9BBC0F;
+    letter-spacing: 1px;
+}
+
+.binding-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid #444;
+}
+
+.binding-row:last-child { border-bottom: none; }
+
+.binding-label {
+    font-size: 12px;
+    color: #BBB;
+}
+
+.binding-key {
+    background: #4A4A4A;
+    border: 1px solid #5A5A5A;
+    border-radius: 4px;
+    color: #FFF;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    min-width: 72px;
+    text-align: center;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+
+.binding-key:hover { background: #5A5A5A; }
+
+.binding-key.listening {
+    background: #9BBC0F;
+    color: #0F380F;
+    border-color: #7A9C00;
+    animation: pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+#modal-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    justify-content: center;
+}
+
+#modal-buttons button {
+    padding: 7px 16px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: bold;
+    font-family: inherit;
+}
+
+#btn-reset-bindings {
+    background: #4A4A4A;
+    color: #CCC;
+}
+
+#btn-reset-bindings:hover { background: #5A5A5A; }
+
+#btn-close-modal {
+    background: #9BBC0F;
+    color: #0F380F;
+}
+
+#btn-close-modal:hover { background: #ABCC1F; }
+
+/* ── Responsive ────────────────────────────────── */
+
+/* Short screens */
+@media (max-height: 620px) {
+    #gb-shell { padding: 6px 12px 14px; }
+    #screen-bezel { padding: 4px 10px 4px; }
     #screen-label { display: none; }
     #game-title { display: none; }
-    #controls { order: 2; width: auto; flex-direction: column; gap: 4px; }
-    #menu-buttons { order: 3; width: 100%; }
-    #toolbar { order: 4; width: 100%; }
+    #bezel-lines { display: none; }
+    #dpad { width: 96px; height: 96px; }
+    #dpad::before { width: 32px; }
+    #dpad::after { height: 32px; }
+    .dpad-up, .dpad-down { width: 32px; height: 32px; }
+    .dpad-left, .dpad-right { width: 32px; height: 32px; }
+    .dpad-nub { width: 11px; height: 11px; }
+    #dpad-container { width: 110px; height: 110px; }
+    #ab-container { width: 130px; height: 110px; }
+    .ab-btn { width: 44px; height: 44px; }
+    #btn-a { margin-top: -18px; }
+    #brand { margin: 2px 0; }
+    #brand-main { font-size: 16px; }
+    #brand-sub { font-size: 9px; }
+    .ss-btn { width: 42px; height: 12px; }
+    #ss-area { gap: 22px; margin: 2px 0; }
+    .grille-slot { width: 26px; }
+    #speaker { bottom: 16px; right: 14px; }
+}
+
+/* Very short screens */
+@media (max-height: 500px) {
+    #gb-shell { padding: 4px 10px 10px; border-radius: 8px 8px 8px 30px; }
+    #screen-well { padding: 3px; }
+    #controls { padding: 2px 8px; }
+    #brand { display: none; }
+    #ss-area { margin: 0; }
+    #speaker { display: none; }
 }
 
 /* Desktop */
 @media (min-width: 768px) and (min-height: 700px) {
-    #screen { width: 480px; height: 432px; }
-    #screen-bezel { padding: 12px 16px 8px; border-radius: 16px; }
+    #gb-shell { max-width: 420px; padding: 14px 18px 22px; }
+    #screen-bezel { padding: 8px 14px 8px; border-radius: 10px; }
+    #screen-well { padding: 8px; }
+    #brand-main { font-size: 22px; }
+    #dpad { width: 120px; height: 120px; }
+    #dpad::before { width: 40px; }
+    #dpad::after { height: 40px; }
+    .dpad-up, .dpad-down { width: 40px; height: 40px; }
+    .dpad-left, .dpad-right { width: 40px; height: 40px; }
+    .dpad-nub { width: 16px; height: 16px; }
+    .ab-btn { width: 56px; height: 56px; }
+    #btn-a { margin-top: -24px; }
+    .ss-btn { width: 52px; height: 16px; }
+}
+
+/* Landscape mobile */
+@media (orientation: landscape) and (max-height: 500px) {
+    #gameboy {
+        flex-direction: row;
+        gap: 8px;
+        padding: 4px;
+    }
+    #gb-shell {
+        max-width: none;
+        width: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 12px;
+        border-radius: 10px;
+        gap: 4px;
+    }
+    #screen-area { width: auto; order: 1; }
+    #screen-bezel { width: auto; }
+    #screen { width: 192px; }
+    #brand { display: none; }
+    #controls { order: 2; width: auto; flex-direction: column; padding: 0 8px; gap: 0; }
+    #dpad-container { width: 100px; height: 100px; }
+    #dpad { width: 88px; height: 88px; }
+    #dpad::before { width: 30px; }
+    #dpad::after { height: 30px; }
+    .dpad-up, .dpad-down { width: 30px; height: 29px; }
+    .dpad-left, .dpad-right { width: 29px; height: 30px; }
+    #ab-container { width: 110px; height: 100px; }
+    .ab-btn { width: 40px; height: 40px; }
+    #btn-a { margin-top: -16px; }
+    #ss-area { order: 3; gap: 16px; }
+    .ss-btn { width: 40px; height: 12px; }
+    #speaker { display: none; }
+    #toolbar { flex-direction: column; padding: 0; }
+    .toolbar-btn { padding: 5px 8px; font-size: 9px; }
 }

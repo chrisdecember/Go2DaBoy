@@ -37,6 +37,47 @@ func (m *MBC0) WriteRAM(addr uint16, value uint8) {
 	// No external RAM
 }
 
+// --- MBC0RAM: ROM + external RAM (cart types 0x08, 0x09) ---
+
+type MBC0RAM struct {
+	rom []byte
+	ram []byte
+}
+
+func NewMBC0RAM(rom []byte, ramSize int) *MBC0RAM {
+	m := &MBC0RAM{rom: rom}
+	if ramSize > 0 {
+		m.ram = make([]byte, ramSize)
+	}
+	return m
+}
+
+func (m *MBC0RAM) ReadROM(addr uint16) uint8 {
+	if int(addr) < len(m.rom) {
+		return m.rom[addr]
+	}
+	return 0xFF
+}
+
+func (m *MBC0RAM) WriteROM(addr uint16, value uint8) {
+	// ROM - writes ignored
+}
+
+func (m *MBC0RAM) ReadRAM(addr uint16) uint8 {
+	offset := int(addr - 0xA000)
+	if offset < len(m.ram) {
+		return m.ram[offset]
+	}
+	return 0xFF
+}
+
+func (m *MBC0RAM) WriteRAM(addr uint16, value uint8) {
+	offset := int(addr - 0xA000)
+	if offset < len(m.ram) {
+		m.ram[offset] = value
+	}
+}
+
 // --- MBC1: up to 2MB ROM / 32KB RAM ---
 
 type MBC1 struct {

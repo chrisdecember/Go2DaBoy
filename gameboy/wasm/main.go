@@ -4,12 +4,17 @@ package main
 
 import (
 	"syscall/js"
+	"unsafe"
 
 	"yukudanshi/gameboy/internal"
 	"yukudanshi/gameboy/internal/joypad"
 )
 
 var emu *internal.Emulator
+
+// Pre-allocated JS buffers for audio transfer (avoids per-frame allocation)
+var audioJSBuf js.Value  // Uint8Array
+var audioJSBufCap int    // capacity in bytes
 
 func main() {
 	emu = internal.New()
@@ -34,6 +39,9 @@ func loadROM(this js.Value, args []js.Value) interface{} {
 
 	jsArray := args[0]
 	length := jsArray.Length()
+	if length == 0 {
+		return js.ValueOf("ROM data is empty")
+	}
 	data := make([]byte, length)
 	js.CopyBytesToGo(data, jsArray)
 
@@ -63,15 +71,40 @@ func getFrame(this js.Value, args []js.Value) interface{} {
 
 func getAudio(this js.Value, args []js.Value) interface{} {
 	samples := emu.GetAudioSamples()
-	if len(samples) == 0 {
+	n := len(samples)
+	if n == 0 {
 		return nil
 	}
 
-	jsArray := js.Global().Get("Float32Array").New(len(samples))
-	for i, s := range samples {
-		jsArray.SetIndex(i, s)
+	// Reinterpret []float32 as []byte for bulk copy (WASM is always little-endian)
+	byteLen := n * 4
+	byteSlice := unsafe.Slice((*byte)(unsafe.Pointer(&samples[0])), byteLen)
+
+	// Grow the shared JS buffer if needed
+	if byteLen > audioJSBufCap {
+		// Round up to next power of 2 to avoid frequent re-allocs
+		newCap := byteLen
+		newCap--
+		newCap |= newCap >> 1
+		newCap |= newCap >> 2
+		newCap |= newCap >> 4
+		newCap |= newCap >> 8
+		newCap |= newCap >> 16
+		newCap++
+
+		audioJSBuf = js.Global().Get("Uint8Array").New(newCap)
+		audioJSBufCap = newCap
 	}
-	return jsArray
+
+	// Single bulk copy instead of N individual SetIndex calls
+	js.CopyBytesToJS(audioJSBuf, byteSlice)
+
+	// Return a Float32Array view over the copied bytes
+	return js.Global().Get("Float32Array").New(
+		audioJSBuf.Get("buffer"),
+		audioJSBuf.Get("byteOffset"),
+		n,
+	)
 }
 
 func keyDown(this js.Value, args []js.Value) interface{} {
