@@ -17,7 +17,7 @@ Go2DaBoy is a dot-matrix handheld console emulator that runs entirely in the bro
 
 ## Features
 
-- **Accurate emulation** — CPU, PPU, APU, and timer subsystems with cycle-accurate timing
+- **Accurate emulation** — cycle-driven CPU with hardware-timed PPU, APU, and timer subsystems
 - **Full audio** — 4-channel sound synthesis with high-pass filtering, ring buffer, and zero-GC audio pipeline
 - **6 cartridge types** — MBC0, MBC1, MBC2, MBC3, MBC5, and ROM+RAM
 - **Mobile-first UI** — touch D-pad, A/B buttons, responsive layout with landscape support
