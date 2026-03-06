@@ -131,14 +131,13 @@
             framesRun++;
             frameTimeAccumulator -= FRAME_DURATION;
 
-            // Process audio - skip during fast-forward to avoid corruption
-            if (!ff && soundEnabled && audioCtx && audioCtx.state === 'running') {
+            // Queue audio from every frame (including FF — gives sped-up music)
+            if (soundEnabled && audioCtx && audioCtx.state === 'running') {
                 const samples = gbGetAudio();
                 if (samples && samples.length > 0) {
                     queueAudio(samples);
                 }
             } else {
-                // Drain audio buffer so it doesn't accumulate
                 gbGetAudio();
             }
 
