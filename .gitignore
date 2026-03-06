@@ -1,0 +1,18 @@
+# Build artifacts
+build/
+*.wasm
+
+# Compiled binaries
+cmd
+wasm
+gameboy/cmd/cmd
+gameboy/wasm/wasm
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# ROMs (don't commit copyrighted material)
+*.gb
+*.gbc
+*.bin
