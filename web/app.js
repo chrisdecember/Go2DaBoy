@@ -201,6 +201,20 @@
         setupModal();
         setupColorsModal();
 
+        // iOS: create AudioContext on first user gesture so it isn't born suspended
+        var unlockAudio = function() {
+            ensureAudioCtx();
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            document.removeEventListener('touchstart', unlockAudio, true);
+            document.removeEventListener('touchend', unlockAudio, true);
+            document.removeEventListener('click', unlockAudio, true);
+        };
+        document.addEventListener('touchstart', unlockAudio, true);
+        document.addEventListener('touchend', unlockAudio, true);
+        document.addEventListener('click', unlockAudio, true);
+
         // Load saved palette and apply
         loadPalette();
         applyPalette(currentPalette);
@@ -321,7 +335,10 @@
 
     // ── Audio engine ─────────────────────────────────────────────────
 
-    function initAudio() {
+    // iOS Safari requires AudioContext creation inside a direct user gesture.
+    // We create it on the very first touch/click, then connect the processor
+    // when a ROM is loaded.
+    function ensureAudioCtx() {
         if (audioCtx) return;
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)({
@@ -329,7 +346,15 @@
             });
             audioRing = new Float32Array(AUDIO_RING_SIZE);
             audioRingClear();
+        } catch (e) {
+            console.warn('AudioContext creation failed:', e);
+        }
+    }
 
+    function initAudio() {
+        ensureAudioCtx();
+        if (!audioCtx || audioScriptNode) return;
+        try {
             var bufferSize = 2048;
             audioScriptNode = audioCtx.createScriptProcessor(bufferSize, 0, 2);
             audioScriptNode.onaudioprocess = function(e) {
@@ -361,6 +386,10 @@
                 }
             };
             audioScriptNode.connect(audioCtx.destination);
+            // Force resume in case iOS suspended it
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
         } catch (e) {
             console.warn('Audio init failed:', e);
         }
@@ -383,6 +412,7 @@
     }
 
     function resumeAudio() {
+        ensureAudioCtx();
         if (audioCtx && audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
@@ -822,6 +852,39 @@
         document.getElementById('btn-reset-colors').addEventListener('click', function() {
             applyPalette(DEFAULT_PALETTE);
             updatePickerInputs();
+        });
+
+        // ── Scanline toggle ──────────────────────────────────
+        var screenWell = document.getElementById('screen-well');
+        var scanBtns = document.querySelectorAll('.scan-opt');
+        var savedScan = localStorage.getItem('g2db-scanline') || '';
+
+        // Apply saved setting
+        if (savedScan) {
+            screenWell.classList.add(savedScan);
+        }
+        scanBtns.forEach(function(btn) {
+            if (btn.dataset.scan === savedScan) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        scanBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                // Remove all scan classes
+                screenWell.classList.remove('scan-dmg', 'scan-clean', 'scan-heavy', 'scan-lcd');
+                // Remove active from all buttons
+                scanBtns.forEach(function(b) { b.classList.remove('active'); });
+                // Apply selected
+                var mode = btn.dataset.scan;
+                if (mode) {
+                    screenWell.classList.add(mode);
+                }
+                btn.classList.add('active');
+                localStorage.setItem('g2db-scanline', mode);
+            });
         });
     }
 
