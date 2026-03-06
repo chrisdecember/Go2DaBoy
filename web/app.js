@@ -260,7 +260,9 @@
         var framesRun = 0;
 
         if (wasFastForward && !ff) {
-            audioRingClear();
+            // Leaving FF: reset timing so we don't lurch.
+            // Don't clear the ring buffer — it was never filled during FF,
+            // so the consumer drains naturally with no pop/click.
             frameTimeAccumulator = 0;
             lastFrameTime = now;
         }
@@ -275,7 +277,9 @@
             framesRun++;
             frameTimeAccumulator -= FRAME_DURATION;
 
-            if (soundEnabled && audioCtx && audioCtx.state === 'running') {
+            // Only queue audio at normal speed. During FF the 4x production
+            // rate overflows the ring buffer causing sample drops → clicks.
+            if (soundEnabled && audioCtx && audioCtx.state === 'running' && !ff) {
                 var samples = gbGetAudio();
                 if (samples && samples.length > 0) {
                     queueAudio(samples);
@@ -329,11 +333,22 @@
                 var avail = audioRingAvailable();
                 var samplePairs = Math.min(bufferSize, avail >>> 1);
                 var i = 0;
+                var lastL = 0, lastR = 0;
                 for (; i < samplePairs; i++) {
-                    left[i] = audioRing[audioReadPos];
+                    lastL = left[i] = audioRing[audioReadPos];
                     audioReadPos = (audioReadPos + 1) & AUDIO_RING_MASK;
-                    right[i] = audioRing[audioReadPos];
+                    lastR = right[i] = audioRing[audioReadPos];
                     audioReadPos = (audioReadPos + 1) & AUDIO_RING_MASK;
+                }
+                // Fade out over 32 samples on underrun to prevent clicks
+                if (i < bufferSize && i > 0) {
+                    var fadeLen = Math.min(32, bufferSize - i);
+                    for (var f = 0; f < fadeLen; f++) {
+                        var t = 1 - (f + 1) / fadeLen;
+                        left[i] = lastL * t;
+                        right[i] = lastR * t;
+                        i++;
+                    }
                 }
                 for (; i < bufferSize; i++) {
                     left[i] = 0;
@@ -351,8 +366,10 @@
         var len = samples.length;
         var free = audioRingFree();
         if (len > free) {
-            var drop = len - free;
-            audioReadPos = (audioReadPos + drop) & AUDIO_RING_MASK;
+            // Buffer full — drop this batch entirely rather than advancing
+            // the read cursor (which skips audio mid-stream → audible click).
+            // At normal speed this shouldn't happen; it's a safety valve.
+            return;
         }
         for (var i = 0; i < len; i++) {
             audioRing[audioWritePos] = samples[i];
