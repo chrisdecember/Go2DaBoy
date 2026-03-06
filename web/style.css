@@ -51,7 +51,7 @@ html, body {
 
 /* ── Emulator container ───────────────────────── */
 
-#gameboy {
+#console {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -64,7 +64,7 @@ html, body {
 
 /* ── Shell body ────────────────────────────────── */
 
-#gb-shell {
+#emu-shell {
     background: linear-gradient(170deg, #C8C8BA 0%, #BABAD0 50%, #B8B8A8 100%);
     border-radius: 10px 10px 10px 46px;
     max-width: 400px;
@@ -778,7 +778,7 @@ html, body {
 
 /* Short screens */
 @media (max-height: 620px) {
-    #gb-shell { padding: 6px 12px 14px; }
+    #emu-shell { padding: 6px 12px 14px; }
     #screen-bezel { padding: 4px 10px 4px; }
     #screen-label { display: none; }
     #game-title { display: none; }
@@ -804,7 +804,7 @@ html, body {
 
 /* Very short screens */
 @media (max-height: 500px) {
-    #gb-shell { padding: 4px 10px 10px; border-radius: 8px 8px 8px 30px; }
+    #emu-shell { padding: 4px 10px 10px; border-radius: 8px 8px 8px 30px; }
     #screen-well { padding: 3px; }
     #controls { padding: 2px 8px; }
     #brand { display: none; }
@@ -814,7 +814,7 @@ html, body {
 
 /* Desktop */
 @media (min-width: 768px) and (min-height: 700px) {
-    #gb-shell { max-width: 420px; padding: 14px 18px 22px; }
+    #emu-shell { max-width: 420px; padding: 14px 18px 22px; }
     #screen-bezel { padding: 8px 14px 8px; border-radius: 10px; }
     #screen-well { padding: 8px; }
     #brand-main { font-size: 22px; }
@@ -831,12 +831,12 @@ html, body {
 
 /* Landscape mobile */
 @media (orientation: landscape) and (max-height: 500px) {
-    #gameboy {
+    #console {
         flex-direction: row;
         gap: 8px;
         padding: 4px;
     }
-    #gb-shell {
+    #emu-shell {
         max-width: none;
         width: auto;
         flex-direction: row;
