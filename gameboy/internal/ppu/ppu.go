@@ -24,7 +24,7 @@ const (
 	totalLines        = 154
 )
 
-// DMG palette colors (classic green)
+// Default palette colors (classic green)
 var dmgColors = [4][4]uint8{
 	{0x9B, 0xBC, 0x0F, 0xFF}, // Lightest
 	{0x8B, 0xAC, 0x0F, 0xFF},
@@ -32,13 +32,13 @@ var dmgColors = [4][4]uint8{
 	{0x0F, 0x38, 0x0F, 0xFF}, // Darkest
 }
 
-// SetPalette replaces the 4-shade DMG palette at runtime.
+// SetPalette replaces the 4-shade palette at runtime.
 // Each color is [R, G, B, A] in order from lightest to darkest.
 func SetPalette(colors [4][4]uint8) {
 	dmgColors = colors
 }
 
-// PPU implements the Game Boy pixel processing unit
+// PPU implements the pixel processing unit
 type PPU struct {
 	// VRAM and OAM
 	VRAM [0x2000]uint8

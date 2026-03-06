@@ -49,7 +49,7 @@ html, body {
 
 .hidden { display: none !important; }
 
-/* ── Game Boy container ────────────────────────── */
+/* ── Emulator container ───────────────────────── */
 
 #gameboy {
     display: flex;
@@ -200,13 +200,6 @@ html, body {
     padding-left: 4px;
     align-self: flex-start;
     margin-left: 8%;
-}
-
-#brand-sub {
-    font-size: 11px;
-    font-style: italic;
-    color: #30306C;
-    font-weight: 600;
 }
 
 #brand-main {

@@ -971,7 +971,7 @@ func (c *CPU) execute(opcode uint8) int {
 
 	// === Undefined opcodes ===
 	case 0xD3, 0xDB, 0xDD, 0xE3, 0xE4, 0xEB, 0xEC, 0xED, 0xF4, 0xFC, 0xFD:
-		// These are undefined on the Game Boy and effectively act as NOPs or hangs
+		// These are undefined opcodes and effectively act as NOPs or hangs
 		return 4
 
 	default:

@@ -4,7 +4,7 @@ const sampleRate = 44100
 const cpuFreq = 4194304
 const samplesPerFrame = sampleRate / 60
 
-// APU implements the Game Boy audio processing unit with 4 channels.
+// APU implements the audio processing unit with 4 channels.
 type APU struct {
 	enabled bool
 
@@ -33,7 +33,7 @@ type APU struct {
 	sampleBuffer  []float32
 	bufferPos     int
 
-	// High-pass filter capacitors (removes DC offset — Game Boy hardware
+	// High-pass filter capacitors (removes DC offset — the original hardware
 	// has an analog HPF that centers the waveform around zero)
 	hpfCapL, hpfCapR float32
 }
@@ -215,7 +215,7 @@ func (a *APU) Read(addr uint16) uint8 {
 
 func (a *APU) Write(addr uint16, value uint8) {
 	if !a.enabled && addr != 0xFF26 && !(addr >= 0xFF30 && addr <= 0xFF3F) {
-		// DMG allows writing length counters when APU is off
+		// Allow writing length counters when APU is off
 		switch addr {
 		case 0xFF11:
 			a.ch1.length = 64 - int(value&0x3F)
@@ -324,7 +324,7 @@ func (a *APU) Write(addr uint16, value uint8) {
 			// Turning off APU clears all registers (wave RAM preserved)
 			a.ch1 = squareChannel{}
 			a.ch2 = squareChannel{}
-			waveRAM := a.ch3.waveRAM // Preserve wave RAM on DMG
+			waveRAM := a.ch3.waveRAM // Preserve wave RAM
 			a.ch3 = waveChannel{waveRAM: waveRAM}
 			a.ch4 = noiseChannel{lfsr: 0x7FFF}
 			a.nr50 = 0

@@ -1,6 +1,6 @@
 package joypad
 
-// Button represents a Game Boy button
+// Button represents an emulated button
 type Button uint8
 
 const (
@@ -14,8 +14,8 @@ const (
 	ButtonDown   Button = 7
 )
 
-// Joypad handles Game Boy button input via register 0xFF00.
-// The Game Boy uses active-low logic: bit=0 means pressed.
+// Joypad handles button input via register 0xFF00.
+// Uses active-low logic: bit=0 means pressed.
 type Joypad struct {
 	buttons         uint8 // 8 buttons packed: low=pressed
 	selectAction    bool  // Bit 5 of P1 (0=select)

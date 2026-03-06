@@ -12,7 +12,7 @@ import (
 
 const cyclesPerFrame = 70224 // T-cycles per frame (~59.7 FPS)
 
-// Emulator represents the Game Boy emulator
+// Emulator represents the emulator core
 type Emulator struct {
 	Bus     *memory.Bus
 	CPU     *cpu.CPU
@@ -66,7 +66,7 @@ func (e *Emulator) LoadROM(data []byte) error {
 	return nil
 }
 
-// Reset resets the emulator to post-boot ROM state (DMG)
+// Reset resets the emulator to post-boot ROM state
 func (e *Emulator) Reset() {
 	e.CPU.Reset()
 	e.PPU.Reset()
@@ -105,7 +105,7 @@ func (e *Emulator) Reset() {
 	e.Bus.Write(0xFF23, 0xBF) // NR44
 	e.Bus.Write(0xFF24, 0x77) // NR50
 	e.Bus.Write(0xFF25, 0xF3) // NR51
-	e.Bus.Write(0xFF26, 0xF1) // NR52 (DMG)
+	e.Bus.Write(0xFF26, 0xF1) // NR52
 	e.Bus.Write(0xFF40, 0x91) // LCDC
 	e.Bus.Write(0xFF41, 0x85) // STAT
 	e.Bus.Write(0xFF42, 0x00) // SCY
@@ -172,7 +172,7 @@ func (e *Emulator) GetFrameBuffer() []uint8 {
 	return e.PPU.FrameBuffer[:]
 }
 
-// SetPalette replaces the 4-shade DMG palette at runtime.
+// SetPalette replaces the 4-shade palette at runtime.
 func (e *Emulator) SetPalette(colors [4][4]uint8) {
 	ppu.SetPalette(colors)
 }
