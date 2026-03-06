@@ -21,12 +21,12 @@ func main() {
 	}
 
 	if *romFile == "" {
-		fmt.Println("yukudanshi - retro handheld emulator")
+		fmt.Println("Go2DaBoy - retro handheld emulator")
 		fmt.Println()
 		fmt.Println("Usage:")
-		fmt.Println("  yukudanshi -serve              Start web server on port 8080")
-		fmt.Println("  yukudanshi -serve -port 3000   Start web server on port 3000")
-		fmt.Println("  yukudanshi -rom game.gb        Load ROM (headless test)")
+		fmt.Println("  go2daboy -serve              Start web server on port 8080")
+		fmt.Println("  go2daboy -serve -port 3000   Start web server on port 3000")
+		fmt.Println("  go2daboy -rom game.gb        Load ROM (headless test)")
 		os.Exit(0)
 	}
 
@@ -65,7 +65,7 @@ func startServer(port string) {
 	// Serve static files
 	mux.Handle("/", http.FileServer(http.Dir(webDir)))
 
-	fmt.Printf("Starting yukudanshi server on http://localhost:%s\n", port)
+	fmt.Printf("Starting Go2DaBoy server on http://localhost:%s\n", port)
 	fmt.Println("Open this URL on your phone or browser to play!")
 	log.Fatal(http.ListenAndServe(":"+port, mux))
 }

@@ -1,13 +1,13 @@
 package internal
 
 import (
-	"yukudanshi/gameboy/internal/apu"
-	"yukudanshi/gameboy/internal/cartridge"
-	"yukudanshi/gameboy/internal/cpu"
-	"yukudanshi/gameboy/internal/joypad"
-	"yukudanshi/gameboy/internal/memory"
-	"yukudanshi/gameboy/internal/ppu"
-	"yukudanshi/gameboy/internal/timer"
+	"go2daboy/gameboy/internal/apu"
+	"go2daboy/gameboy/internal/cartridge"
+	"go2daboy/gameboy/internal/cpu"
+	"go2daboy/gameboy/internal/joypad"
+	"go2daboy/gameboy/internal/memory"
+	"go2daboy/gameboy/internal/ppu"
+	"go2daboy/gameboy/internal/timer"
 )
 
 const cyclesPerFrame = 70224 // T-cycles per frame (~59.7 FPS)

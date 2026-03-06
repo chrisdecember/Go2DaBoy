@@ -6,8 +6,8 @@ import (
 	"syscall/js"
 	"unsafe"
 
-	"yukudanshi/gameboy/internal"
-	"yukudanshi/gameboy/internal/joypad"
+	"go2daboy/gameboy/internal"
+	"go2daboy/gameboy/internal/joypad"
 )
 
 var emu *internal.Emulator

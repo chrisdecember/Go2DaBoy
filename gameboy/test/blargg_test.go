@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"yukudanshi/gameboy/internal"
+	"go2daboy/gameboy/internal"
 )
 
 // TestBlarggCPUInstrs runs each of the Blargg cpu_instrs individual test ROMs.

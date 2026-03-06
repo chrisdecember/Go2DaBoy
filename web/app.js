@@ -91,7 +91,7 @@
 
     function loadBindings() {
         try {
-            var saved = localStorage.getItem('yk-keybindings');
+            var saved = localStorage.getItem('g2db-keybindings');
             if (saved) {
                 keyBindings = JSON.parse(saved);
                 // Ensure all actions have a binding
@@ -108,7 +108,7 @@
 
     function saveBindings() {
         try {
-            localStorage.setItem('yk-keybindings', JSON.stringify(keyBindings));
+            localStorage.setItem('g2db-keybindings', JSON.stringify(keyBindings));
         } catch(e) {}
     }
 
@@ -691,13 +691,13 @@
 
     function savePalette() {
         try {
-            localStorage.setItem('yk-palette', JSON.stringify(currentPalette));
+            localStorage.setItem('g2db-palette', JSON.stringify(currentPalette));
         } catch(e) {}
     }
 
     function loadPalette() {
         try {
-            var saved = localStorage.getItem('yk-palette');
+            var saved = localStorage.getItem('g2db-palette');
             if (saved) {
                 var colors = JSON.parse(saved);
                 if (colors && colors.length === 4) {
