@@ -27,6 +27,7 @@ func main() {
 	js.Global().Set("gbKeyUp", js.FuncOf(keyUp))
 	js.Global().Set("gbReset", js.FuncOf(reset))
 	js.Global().Set("gbGetTitle", js.FuncOf(getTitle))
+	js.Global().Set("gbSetPalette", js.FuncOf(setPalette))
 
 	// Keep the Go runtime alive
 	select {}
@@ -136,6 +137,23 @@ func reset(this js.Value, args []js.Value) interface{} {
 
 func getTitle(this js.Value, args []js.Value) interface{} {
 	return js.ValueOf(emu.GetCartridgeTitle())
+}
+
+// setPalette accepts 4 colors as 12 ints: [R0,G0,B0, R1,G1,B1, R2,G2,B2, R3,G3,B3]
+// ordered lightest to darkest.
+func setPalette(this js.Value, args []js.Value) interface{} {
+	if len(args) < 12 {
+		return nil
+	}
+	var colors [4][4]uint8
+	for i := 0; i < 4; i++ {
+		colors[i][0] = uint8(args[i*3].Int())
+		colors[i][1] = uint8(args[i*3+1].Int())
+		colors[i][2] = uint8(args[i*3+2].Int())
+		colors[i][3] = 0xFF
+	}
+	emu.SetPalette(colors)
+	return nil
 }
 
 // mapButton maps JS button codes to joypad buttons

@@ -172,6 +172,11 @@ func (e *Emulator) GetFrameBuffer() []uint8 {
 	return e.PPU.FrameBuffer[:]
 }
 
+// SetPalette replaces the 4-shade DMG palette at runtime.
+func (e *Emulator) SetPalette(colors [4][4]uint8) {
+	ppu.SetPalette(colors)
+}
+
 // IsFrameReady returns true when PPU has completed a frame
 func (e *Emulator) IsFrameReady() bool {
 	return e.PPU.IsFrameReady()

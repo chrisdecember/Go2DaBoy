@@ -32,6 +32,12 @@ var dmgColors = [4][4]uint8{
 	{0x0F, 0x38, 0x0F, 0xFF}, // Darkest
 }
 
+// SetPalette replaces the 4-shade DMG palette at runtime.
+// Each color is [R, G, B, A] in order from lightest to darkest.
+func SetPalette(colors [4][4]uint8) {
+	dmgColors = colors
+}
+
 // PPU implements the Game Boy pixel processing unit
 type PPU struct {
 	// VRAM and OAM

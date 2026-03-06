@@ -101,6 +101,7 @@
                 <button id="btn-sound" class="toolbar-btn">SND: ON</button>
                 <button id="btn-ff" class="toolbar-btn">FF</button>
                 <button id="btn-controls" class="toolbar-btn">KEYS</button>
+                <button id="btn-colors" class="toolbar-btn">COLORS</button>
             </div>
         </div>
 
@@ -117,6 +118,47 @@
             </div>
         </div>
     </div>
+
+        <!-- Color palette modal -->
+        <div id="colors-modal" class="hidden">
+            <div id="colors-overlay"></div>
+            <div id="colors-content">
+                <h2>Color Palette</h2>
+                <div id="palette-presets"></div>
+                <div id="palette-pickers">
+                    <div class="picker-row">
+                        <span class="picker-label">Lightest</span>
+                        <input type="color" id="color-0" class="color-input" value="#9BBC0F">
+                        <input type="text" id="hex-0" class="hex-input" maxlength="7" value="#9BBC0F">
+                    </div>
+                    <div class="picker-row">
+                        <span class="picker-label">Light</span>
+                        <input type="color" id="color-1" class="color-input" value="#8BAC0F">
+                        <input type="text" id="hex-1" class="hex-input" maxlength="7" value="#8BAC0F">
+                    </div>
+                    <div class="picker-row">
+                        <span class="picker-label">Dark</span>
+                        <input type="color" id="color-2" class="color-input" value="#306230">
+                        <input type="text" id="hex-2" class="hex-input" maxlength="7" value="#306230">
+                    </div>
+                    <div class="picker-row">
+                        <span class="picker-label">Darkest</span>
+                        <input type="color" id="color-3" class="color-input" value="#0F380F">
+                        <input type="text" id="hex-3" class="hex-input" maxlength="7" value="#0F380F">
+                    </div>
+                </div>
+                <div id="palette-preview">
+                    <div class="preview-swatch" id="swatch-0"></div>
+                    <div class="preview-swatch" id="swatch-1"></div>
+                    <div class="preview-swatch" id="swatch-2"></div>
+                    <div class="preview-swatch" id="swatch-3"></div>
+                </div>
+                <div id="colors-buttons">
+                    <button id="btn-reset-colors">Reset Default</button>
+                    <button id="btn-close-colors">Close</button>
+                </div>
+            </div>
+        </div>
 
     <script src="wasm_exec.js"></script>
     <script src="app.js"></script>
