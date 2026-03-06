@@ -206,7 +206,7 @@
         applyPalette(currentPalette);
 
         document.getElementById('loading-screen').classList.add('hidden');
-        document.getElementById('gameboy').classList.remove('hidden');
+        document.getElementById('console').classList.remove('hidden');
     }
 
     // ── File input ───────────────────────────────────────────────────

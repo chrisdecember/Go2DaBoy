@@ -1,11 +1,11 @@
 package memory
 
 import (
-	"go2daboy/gameboy/internal/apu"
-	"go2daboy/gameboy/internal/cartridge"
-	"go2daboy/gameboy/internal/joypad"
-	"go2daboy/gameboy/internal/ppu"
-	"go2daboy/gameboy/internal/timer"
+	"go2daboy/emulator/internal/apu"
+	"go2daboy/emulator/internal/cartridge"
+	"go2daboy/emulator/internal/joypad"
+	"go2daboy/emulator/internal/ppu"
+	"go2daboy/emulator/internal/timer"
 )
 
 // Bus is the central memory bus routing reads/writes to the appropriate component.

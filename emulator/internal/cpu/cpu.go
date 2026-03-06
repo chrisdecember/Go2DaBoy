@@ -1,6 +1,6 @@
 package cpu
 
-import "go2daboy/gameboy/internal/memory"
+import "go2daboy/emulator/internal/memory"
 
 // CPU represents the Sharp LR35902 processor
 type CPU struct {

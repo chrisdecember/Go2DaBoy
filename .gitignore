@@ -5,8 +5,8 @@ build/
 # Compiled binaries
 cmd
 wasm
-gameboy/cmd/cmd
-gameboy/wasm/wasm
+emulator/cmd/cmd
+emulator/wasm/wasm
 
 # OS files
 .DS_Store

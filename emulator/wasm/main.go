@@ -6,8 +6,8 @@ import (
 	"syscall/js"
 	"unsafe"
 
-	"go2daboy/gameboy/internal"
-	"go2daboy/gameboy/internal/joypad"
+	"go2daboy/emulator/internal"
+	"go2daboy/emulator/internal/joypad"
 )
 
 var emu *internal.Emulator
