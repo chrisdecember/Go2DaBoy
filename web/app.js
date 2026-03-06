@@ -201,6 +201,20 @@
         setupModal();
         setupColorsModal();
 
+        // iOS: create AudioContext on first user gesture so it isn't born suspended
+        var unlockAudio = function() {
+            ensureAudioCtx();
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            document.removeEventListener('touchstart', unlockAudio, true);
+            document.removeEventListener('touchend', unlockAudio, true);
+            document.removeEventListener('click', unlockAudio, true);
+        };
+        document.addEventListener('touchstart', unlockAudio, true);
+        document.addEventListener('touchend', unlockAudio, true);
+        document.addEventListener('click', unlockAudio, true);
+
         // Load saved palette and apply
         loadPalette();
         applyPalette(currentPalette);
@@ -321,7 +335,10 @@
 
     // ── Audio engine ─────────────────────────────────────────────────
 
-    function initAudio() {
+    // iOS Safari requires AudioContext creation inside a direct user gesture.
+    // We create it on the very first touch/click, then connect the processor
+    // when a ROM is loaded.
+    function ensureAudioCtx() {
         if (audioCtx) return;
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)({
@@ -329,7 +346,15 @@
             });
             audioRing = new Float32Array(AUDIO_RING_SIZE);
             audioRingClear();
+        } catch (e) {
+            console.warn('AudioContext creation failed:', e);
+        }
+    }
 
+    function initAudio() {
+        ensureAudioCtx();
+        if (!audioCtx || audioScriptNode) return;
+        try {
             var bufferSize = 2048;
             audioScriptNode = audioCtx.createScriptProcessor(bufferSize, 0, 2);
             audioScriptNode.onaudioprocess = function(e) {
@@ -361,6 +386,10 @@
                 }
             };
             audioScriptNode.connect(audioCtx.destination);
+            // Force resume in case iOS suspended it
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
         } catch (e) {
             console.warn('Audio init failed:', e);
         }
@@ -383,6 +412,7 @@
     }
 
     function resumeAudio() {
+        ensureAudioCtx();
         if (audioCtx && audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
