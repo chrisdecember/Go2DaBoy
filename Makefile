@@ -1,7 +1,6 @@
 .PHONY: build clean serve
 
-GOROOT := $(shell go env GOROOT)
-WASM_EXEC := $(GOROOT)/lib/wasm/wasm_exec.js
+WASM_EXEC := $(shell GOROOT= go env GOROOT)/lib/wasm/wasm_exec.js
 
 build:
 	@mkdir -p build
