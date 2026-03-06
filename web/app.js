@@ -199,6 +199,11 @@
         setupFileInput();
         setupKeyboard();
         setupModal();
+        setupColorsModal();
+
+        // Load saved palette and apply
+        loadPalette();
+        applyPalette(currentPalette);
 
         document.getElementById('loading-screen').classList.add('hidden');
         document.getElementById('gameboy').classList.remove('hidden');
@@ -277,11 +282,11 @@
             framesRun++;
             frameTimeAccumulator -= FRAME_DURATION;
 
-            // Only queue audio at normal speed. During FF the 4x production
-            // rate overflows the ring buffer causing sample drops → clicks.
-            if (soundEnabled && audioCtx && audioCtx.state === 'running' && !ff) {
+            // During FF, only queue every FF_SPEED-th frame to keep the
+            // ring buffer from overflowing while still producing audio.
+            if (soundEnabled && audioCtx && audioCtx.state === 'running') {
                 var samples = gbGetAudio();
-                if (samples && samples.length > 0) {
+                if (samples && samples.length > 0 && (!ff || framesRun % FF_SPEED === 1)) {
                     queueAudio(samples);
                 }
             } else {
@@ -626,6 +631,203 @@
         }
 
         document.addEventListener('keydown', onKey, true);
+    }
+
+    // ── Color palette ────────────────────────────────────────────────
+
+    var PALETTE_PRESETS = {
+        'DMG Green':  ['#9BBC0F','#8BAC0F','#306230','#0F380F'],
+        'Grayscale':  ['#FFFFFF','#AAAAAA','#555555','#000000'],
+        'Pocket':     ['#C4CFA1','#8B956D','#4D533C','#1F1F1F'],
+        'Light':      ['#E0F8D0','#88C070','#346856','#081820'],
+        'Nostalgia':  ['#F8E8C0','#D0A870','#785838','#201808'],
+        'Crimson':    ['#FFD0D0','#E06060','#802020','#300000'],
+        'Ocean':      ['#C0E8F8','#5090C0','#204868','#081828'],
+        'Lavender':   ['#E8D0F8','#A070D0','#583880','#180830']
+    };
+    var PRESET_NAMES = Object.keys(PALETTE_PRESETS);
+
+    var DEFAULT_PALETTE = PALETTE_PRESETS['DMG Green'];
+    var currentPalette = DEFAULT_PALETTE.slice();
+
+    function hexToRgb(hex) {
+        var c = parseInt(hex.slice(1), 16);
+        return [(c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF];
+    }
+
+    function rgbToHex(r, g, b) {
+        return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1).toUpperCase();
+    }
+
+    function applyPalette(colors) {
+        currentPalette = colors.slice();
+        var args = [];
+        for (var i = 0; i < 4; i++) {
+            var rgb = hexToRgb(colors[i]);
+            args.push(rgb[0], rgb[1], rgb[2]);
+        }
+        if (typeof gbSetPalette !== 'undefined') {
+            gbSetPalette.apply(null, args);
+        }
+        // Update screen background and well to match lightest/darkest
+        var screen = document.getElementById('screen');
+        if (screen) screen.style.background = colors[0];
+        var well = document.getElementById('screen-well');
+        if (well) well.style.background = colors[3];
+        // Update the initial framebuffer fill color if no ROM loaded
+        if (!romLoaded && frameBuffer) {
+            var rgb0 = hexToRgb(colors[0]);
+            for (var j = 0; j < frameBuffer.length; j += 4) {
+                frameBuffer[j]   = rgb0[0];
+                frameBuffer[j+1] = rgb0[1];
+                frameBuffer[j+2] = rgb0[2];
+                frameBuffer[j+3] = 0xFF;
+            }
+            renderFrame();
+        }
+        savePalette();
+        updateSwatches();
+    }
+
+    function savePalette() {
+        try {
+            localStorage.setItem('gb-palette', JSON.stringify(currentPalette));
+        } catch(e) {}
+    }
+
+    function loadPalette() {
+        try {
+            var saved = localStorage.getItem('gb-palette');
+            if (saved) {
+                var colors = JSON.parse(saved);
+                if (colors && colors.length === 4) {
+                    currentPalette = colors;
+                    return;
+                }
+            }
+        } catch(e) {}
+        currentPalette = DEFAULT_PALETTE.slice();
+    }
+
+    function updateSwatches() {
+        for (var i = 0; i < 4; i++) {
+            var sw = document.getElementById('swatch-' + i);
+            if (sw) sw.style.background = currentPalette[i];
+        }
+    }
+
+    function updatePickerInputs() {
+        for (var i = 0; i < 4; i++) {
+            var ci = document.getElementById('color-' + i);
+            var hi = document.getElementById('hex-' + i);
+            if (ci) ci.value = currentPalette[i];
+            if (hi) hi.value = currentPalette[i];
+        }
+        updateSwatches();
+        highlightActivePreset();
+    }
+
+    function highlightActivePreset() {
+        var btns = document.querySelectorAll('.preset-btn');
+        btns.forEach(function(btn) { btn.classList.remove('active'); });
+
+        for (var name in PALETTE_PRESETS) {
+            var p = PALETTE_PRESETS[name];
+            var match = true;
+            for (var i = 0; i < 4; i++) {
+                if (currentPalette[i].toUpperCase() !== p[i].toUpperCase()) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                var el = document.querySelector('.preset-btn[data-preset="' + name + '"]');
+                if (el) el.classList.add('active');
+                break;
+            }
+        }
+    }
+
+    function setupColorsModal() {
+        // Build preset buttons
+        var presetsDiv = document.getElementById('palette-presets');
+        for (var pi = 0; pi < PRESET_NAMES.length; pi++) {
+            var name = PRESET_NAMES[pi];
+            var colors = PALETTE_PRESETS[name];
+            var btn = document.createElement('button');
+            btn.className = 'preset-btn';
+            btn.setAttribute('data-preset', name);
+
+            var dots = document.createElement('span');
+            dots.className = 'preset-dots';
+            for (var di = 0; di < 4; di++) {
+                var dot = document.createElement('span');
+                dot.className = 'preset-dot';
+                dot.style.background = colors[di];
+                dots.appendChild(dot);
+            }
+            btn.appendChild(dots);
+
+            var label = document.createElement('span');
+            label.textContent = name;
+            btn.appendChild(label);
+
+            btn.addEventListener('click', (function(n) {
+                return function() {
+                    applyPalette(PALETTE_PRESETS[n]);
+                    updatePickerInputs();
+                };
+            })(name));
+
+            presetsDiv.appendChild(btn);
+        }
+
+        // Wire up color pickers and hex inputs
+        for (var i = 0; i < 4; i++) {
+            (function(idx) {
+                var ci = document.getElementById('color-' + idx);
+                var hi = document.getElementById('hex-' + idx);
+
+                ci.addEventListener('input', function() {
+                    hi.value = ci.value.toUpperCase();
+                    currentPalette[idx] = ci.value.toUpperCase();
+                    applyPalette(currentPalette);
+                    highlightActivePreset();
+                });
+
+                hi.addEventListener('change', function() {
+                    var v = hi.value.trim();
+                    if (/^#[0-9A-Fa-f]{6}$/.test(v)) {
+                        ci.value = v;
+                        currentPalette[idx] = v.toUpperCase();
+                        applyPalette(currentPalette);
+                        highlightActivePreset();
+                    } else {
+                        hi.value = currentPalette[idx];
+                    }
+                });
+            })(i);
+        }
+
+        // Open/close
+        document.getElementById('btn-colors').addEventListener('click', function() {
+            modalOpen = true;
+            updatePickerInputs();
+            document.getElementById('colors-modal').classList.remove('hidden');
+        });
+
+        document.getElementById('colors-overlay').addEventListener('click', closeColorsModal);
+        document.getElementById('btn-close-colors').addEventListener('click', closeColorsModal);
+
+        document.getElementById('btn-reset-colors').addEventListener('click', function() {
+            applyPalette(DEFAULT_PALETTE);
+            updatePickerInputs();
+        });
+    }
+
+    function closeColorsModal() {
+        modalOpen = false;
+        document.getElementById('colors-modal').classList.add('hidden');
     }
 
     // ── Boot ─────────────────────────────────────────────────────────
