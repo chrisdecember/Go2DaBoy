@@ -261,6 +261,27 @@ html, body {
     background: #666;
 }
 
+/* Fast-forward indicator */
+#ff-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    color: #0F380F;
+    font-size: 14px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.1s;
+    pointer-events: none;
+}
+
+#ff-indicator.active {
+    opacity: 1;
+}
+
+#screen-bezel {
+    position: relative;
+}
+
 /* Responsive scaling */
 @media (max-height: 700px) {
     #screen { width: 256px; height: 230px; }
