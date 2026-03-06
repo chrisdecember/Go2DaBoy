@@ -853,6 +853,39 @@
             applyPalette(DEFAULT_PALETTE);
             updatePickerInputs();
         });
+
+        // ── Scanline toggle ──────────────────────────────────
+        var screenWell = document.getElementById('screen-well');
+        var scanBtns = document.querySelectorAll('.scan-opt');
+        var savedScan = localStorage.getItem('g2db-scanline') || '';
+
+        // Apply saved setting
+        if (savedScan) {
+            screenWell.classList.add(savedScan);
+        }
+        scanBtns.forEach(function(btn) {
+            if (btn.dataset.scan === savedScan) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        scanBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                // Remove all scan classes
+                screenWell.classList.remove('scan-dmg', 'scan-clean', 'scan-heavy', 'scan-lcd');
+                // Remove active from all buttons
+                scanBtns.forEach(function(b) { b.classList.remove('active'); });
+                // Apply selected
+                var mode = btn.dataset.scan;
+                if (mode) {
+                    screenWell.classList.add(mode);
+                }
+                btn.classList.add('active');
+                localStorage.setItem('g2db-scanline', mode);
+            });
+        });
     }
 
     function closeColorsModal() {

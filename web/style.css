@@ -166,6 +166,89 @@ html, body {
     border-radius: 2px;
 }
 
+/* ── Scanline overlays ────────────────────────── */
+
+#screen-well::after {
+    content: '';
+    position: absolute;
+    top: 6px; bottom: 6px; left: 6px; right: 6px;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+    mix-blend-mode: multiply;
+    transition: opacity 0.3s ease;
+}
+
+/* DMG-01 — realistic Game Boy LCD dot matrix grid */
+#screen-well.scan-dmg::after {
+    opacity: 1;
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0px,
+            transparent 1px,
+            rgba(0,0,0,0.12) 1px,
+            rgba(0,0,0,0.06) 2px
+        ),
+        repeating-linear-gradient(
+            to right,
+            transparent 0px,
+            transparent 1px,
+            rgba(0,0,0,0.08) 1px,
+            rgba(0,0,0,0.04) 2px
+        );
+    background-size: 2px 2px;
+}
+
+/* Clean — subtle horizontal scanlines */
+#screen-well.scan-clean::after {
+    opacity: 1;
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(0,0,0,0.12) 2px,
+        rgba(0,0,0,0.12) 3px
+    );
+    background-size: 100% 3px;
+}
+
+/* Heavy — bold CRT-style scanlines with glow bleed */
+#screen-well.scan-heavy::after {
+    opacity: 1;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(255,255,255,0.03) 0px,
+        transparent 1px,
+        transparent 2px,
+        rgba(0,0,0,0.28) 2px,
+        rgba(0,0,0,0.28) 3px
+    );
+    background-size: 100% 3px;
+}
+
+/* LCD — pixel grid with slight color fringing */
+#screen-well.scan-lcd::after {
+    opacity: 1;
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0px,
+            transparent 2px,
+            rgba(0,0,0,0.18) 2px,
+            rgba(0,0,0,0.08) 3px
+        ),
+        repeating-linear-gradient(
+            to right,
+            rgba(255,0,0,0.02) 0px,
+            rgba(0,255,0,0.02) 1px,
+            rgba(0,0,255,0.02) 2px,
+            transparent 3px
+        );
+    background-size: 3px 3px;
+}
+
 #game-title {
     font-size: 8px;
     color: #50504A;
@@ -773,6 +856,47 @@ html, body {
 }
 
 #btn-close-colors:hover { background: #ABCC1F; }
+
+/* Scanline selector in colors modal */
+#scanline-section {
+    margin-bottom: 14px;
+}
+
+#scanline-section h3 {
+    text-align: center;
+    font-size: 11px;
+    color: #9BBC0F;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+#scanline-options {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+}
+
+.scan-opt {
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background: #3A3A3A;
+    color: #CCC;
+    font-size: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.scan-opt:hover { background: #4A4A4A; }
+
+.scan-opt.active {
+    border-color: #9BBC0F;
+    background: #444;
+    color: #9BBC0F;
+}
 
 /* ── Responsive ────────────────────────────────── */
 
