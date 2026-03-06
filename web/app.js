@@ -10,6 +10,21 @@
     let canvas, ctx, imageData;
     let animFrameId = null;
 
+    // Frame timing
+    const FRAME_DURATION = 1000 / 59.7273; // ~16.74ms - Game Boy's exact refresh rate
+    let lastFrameTime = 0;
+    let frameTimeAccumulator = 0;
+
+    // Fast-forward
+    let fastForward = false;
+    let fastForwardHeld = false;  // spacebar hold
+    let fastForwardToggle = false; // button toggle
+    const FF_SPEED = 4; // run up to 4 frames per RAF tick when fast-forwarding
+
+    function isFastForward() {
+        return fastForwardHeld || fastForwardToggle;
+    }
+
     // Initialize WASM
     async function init() {
         const go = new Go();
@@ -87,23 +102,61 @@
     function startEmulation() {
         if (running) return;
         running = true;
+        lastFrameTime = performance.now();
+        frameTimeAccumulator = 0;
         emulationLoop();
     }
 
     function emulationLoop() {
         if (!running || !romLoaded) return;
 
-        gbRunFrame();
-        gbGetFrame(frameBuffer);
-        renderFrame();
+        const now = performance.now();
+        const elapsed = now - lastFrameTime;
+        lastFrameTime = now;
 
-        // Process audio
-        if (soundEnabled && audioCtx && audioCtx.state === 'running') {
-            const samples = gbGetAudio();
-            if (samples && samples.length > 0) {
-                queueAudio(samples);
+        // Cap accumulated time to prevent spiral of death (e.g. after tab switch)
+        frameTimeAccumulator += Math.min(elapsed, FRAME_DURATION * 8);
+
+        const ff = isFastForward();
+        let framesRun = 0;
+        const maxFrames = ff ? FF_SPEED : 1;
+
+        while (frameTimeAccumulator >= FRAME_DURATION && framesRun < maxFrames) {
+            gbRunFrame();
+            framesRun++;
+            frameTimeAccumulator -= FRAME_DURATION;
+
+            // Process audio - skip during fast-forward to avoid corruption
+            if (!ff && soundEnabled && audioCtx && audioCtx.state === 'running') {
+                const samples = gbGetAudio();
+                if (samples && samples.length > 0) {
+                    queueAudio(samples);
+                }
+            } else {
+                // Drain audio buffer so it doesn't accumulate
+                gbGetAudio();
             }
         }
+
+        // If fast-forwarding, drain any remaining accumulated time so we don't
+        // try to "catch up" a huge backlog when FF ends
+        if (ff) {
+            // Run additional frames without the maxFrames cap during FF
+            while (frameTimeAccumulator >= FRAME_DURATION) {
+                gbRunFrame();
+                gbGetAudio(); // drain
+                frameTimeAccumulator -= FRAME_DURATION;
+            }
+        }
+
+        // Only render the latest frame (skip rendering intermediate catch-up frames)
+        if (framesRun > 0) {
+            gbGetFrame(frameBuffer);
+            renderFrame();
+        }
+
+        // Update FF indicator
+        updateFastForwardIndicator(ff);
 
         animFrameId = requestAnimationFrame(emulationLoop);
     }
@@ -111,6 +164,14 @@
     function renderFrame() {
         imageData.data.set(frameBuffer);
         ctx.putImageData(imageData, 0, 0);
+    }
+
+    // Fast-forward indicator
+    function updateFastForwardIndicator(active) {
+        const indicator = document.getElementById('ff-indicator');
+        if (indicator) {
+            indicator.classList.toggle('active', active);
+        }
     }
 
     // Audio setup using ScriptProcessorNode (widely supported)
@@ -236,6 +297,28 @@
             }
         });
 
+        // Fast-forward toggle button
+        document.getElementById('btn-ff').addEventListener('click', function() {
+            fastForwardToggle = !fastForwardToggle;
+            this.textContent = fastForwardToggle ? 'FF: ON' : 'FF';
+        });
+
+        // Fast-forward touch support (hold to FF)
+        var ffBtn = document.getElementById('btn-ff');
+        ffBtn.addEventListener('touchstart', function(e) {
+            // If toggle is already on, let the click handler manage it
+            if (fastForwardToggle) return;
+            e.preventDefault();
+            fastForwardHeld = true;
+        }, { passive: false });
+        ffBtn.addEventListener('touchend', function(e) {
+            if (fastForwardToggle) return;
+            fastForwardHeld = false;
+        });
+        ffBtn.addEventListener('touchcancel', function() {
+            fastForwardHeld = false;
+        });
+
         // Prevent context menu on long press
         document.addEventListener('contextmenu', function(e) {
             e.preventDefault();
@@ -259,6 +342,13 @@
         };
 
         document.addEventListener('keydown', function(e) {
+            // Spacebar = hold fast-forward
+            if (e.code === 'Space') {
+                e.preventDefault();
+                fastForwardHeld = true;
+                return;
+            }
+
             const btn = keyMap[e.key];
             if (btn !== undefined && romLoaded) {
                 e.preventDefault();
@@ -268,6 +358,12 @@
         });
 
         document.addEventListener('keyup', function(e) {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                fastForwardHeld = false;
+                return;
+            }
+
             const btn = keyMap[e.key];
             if (btn !== undefined && romLoaded) {
                 e.preventDefault();
