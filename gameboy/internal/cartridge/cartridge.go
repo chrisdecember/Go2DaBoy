@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-// Cartridge represents a Game Boy cartridge
+// Cartridge represents a ROM cartridge
 type Cartridge struct {
 	Data    []byte
 	Title   string
@@ -27,7 +27,7 @@ func LoadFromFile(filename string) (*Cartridge, error) {
 // LoadFromBytes loads a cartridge ROM from a byte slice
 func LoadFromBytes(data []byte) (*Cartridge, error) {
 	if len(data) < 0x150 {
-		return nil, fmt.Errorf("ROM too small, not a valid GB ROM")
+		return nil, fmt.Errorf("ROM too small, not a valid ROM")
 	}
 
 	cart := &Cartridge{

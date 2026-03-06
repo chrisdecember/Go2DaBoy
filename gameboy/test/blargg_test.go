@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"yukudanshi/gameboy/internal"
+	"go2daboy/gameboy/internal"
 )
 
 // TestBlarggCPUInstrs runs each of the Blargg cpu_instrs individual test ROMs.
@@ -143,7 +143,7 @@ func runBlarggTest(t *testing.T, romPath string, maxFrames int) string {
 func TestEmulatorSmoke(t *testing.T) {
 	// Create a minimal ROM that does XOR A; JR -2 (infinite loop)
 	rom := make([]byte, 0x8000)
-	// Nintendo logo (required for header validation, but we skip it)
+	// Logo data (required for header validation, but we skip it)
 	rom[0x100] = 0xAF // XOR A at entry point
 	rom[0x101] = 0x18 // JR
 	rom[0x102] = 0xFE // -2 (back to XOR A)

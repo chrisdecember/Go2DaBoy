@@ -1,6 +1,6 @@
 package timer
 
-// Timer implements the Game Boy timer subsystem.
+// Timer implements the timer subsystem.
 // DIV (0xFF04) is the upper byte of a 16-bit internal counter.
 // TIMA (0xFF05) increments at a rate specified by TAC and triggers
 // an interrupt on overflow, reloading from TMA.

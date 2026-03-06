@@ -18,7 +18,7 @@ type Registers struct {
 	PC   uint16 // Program counter
 }
 
-// NewRegisters creates a register set with DMG post-boot values
+// NewRegisters creates a register set with post-boot values
 func NewRegisters() Registers {
 	return Registers{
 		A:  0x01,

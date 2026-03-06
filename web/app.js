@@ -15,7 +15,7 @@
     let offCtx = null;
 
     // Frame timing
-    const FRAME_DURATION = 1000 / 59.7273; // ~16.74ms - Game Boy's exact refresh rate
+    const FRAME_DURATION = 1000 / 59.7273; // ~16.74ms - exact refresh rate
     let lastFrameTime = 0;
     let frameTimeAccumulator = 0;
 
@@ -66,7 +66,7 @@
     var ACTION_TO_BTN = {
         up: 6, down: 7, left: 5, right: 4,
         a: 0, b: 1, start: 3, select: 2
-        // ff is special — not a Game Boy button
+        // ff is special — not an emulated button
     };
 
     var BINDING_DISPLAY = {
@@ -91,7 +91,7 @@
 
     function loadBindings() {
         try {
-            var saved = localStorage.getItem('gb-keybindings');
+            var saved = localStorage.getItem('g2db-keybindings');
             if (saved) {
                 keyBindings = JSON.parse(saved);
                 // Ensure all actions have a binding
@@ -108,7 +108,7 @@
 
     function saveBindings() {
         try {
-            localStorage.setItem('gb-keybindings', JSON.stringify(keyBindings));
+            localStorage.setItem('g2db-keybindings', JSON.stringify(keyBindings));
         } catch(e) {}
     }
 
@@ -186,7 +186,7 @@
 
         frameBuffer = new Uint8Array(160 * 144 * 4);
 
-        // Fill with default GB green
+        // Fill with default green
         for (var i = 0; i < frameBuffer.length; i += 4) {
             frameBuffer[i]   = 0x9B;
             frameBuffer[i+1] = 0xBC;
@@ -636,7 +636,7 @@
     // ── Color palette ────────────────────────────────────────────────
 
     var PALETTE_PRESETS = {
-        'DMG Green':  ['#9BBC0F','#8BAC0F','#306230','#0F380F'],
+        'Classic':    ['#9BBC0F','#8BAC0F','#306230','#0F380F'],
         'Grayscale':  ['#FFFFFF','#AAAAAA','#555555','#000000'],
         'Pocket':     ['#C4CFA1','#8B956D','#4D533C','#1F1F1F'],
         'Light':      ['#E0F8D0','#88C070','#346856','#081820'],
@@ -647,7 +647,7 @@
     };
     var PRESET_NAMES = Object.keys(PALETTE_PRESETS);
 
-    var DEFAULT_PALETTE = PALETTE_PRESETS['DMG Green'];
+    var DEFAULT_PALETTE = PALETTE_PRESETS['Classic'];
     var currentPalette = DEFAULT_PALETTE.slice();
 
     function hexToRgb(hex) {
@@ -691,13 +691,13 @@
 
     function savePalette() {
         try {
-            localStorage.setItem('gb-palette', JSON.stringify(currentPalette));
+            localStorage.setItem('g2db-palette', JSON.stringify(currentPalette));
         } catch(e) {}
     }
 
     function loadPalette() {
         try {
-            var saved = localStorage.getItem('gb-palette');
+            var saved = localStorage.getItem('g2db-palette');
             if (saved) {
                 var colors = JSON.parse(saved);
                 if (colors && colors.length === 4) {

@@ -1,6 +1,6 @@
 package cpu
 
-import "yukudanshi/gameboy/internal/memory"
+import "go2daboy/gameboy/internal/memory"
 
 // CPU represents the Sharp LR35902 processor
 type CPU struct {
