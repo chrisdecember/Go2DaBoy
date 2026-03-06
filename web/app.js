@@ -16,9 +16,9 @@
     let frameTimeAccumulator = 0;
 
     // Fast-forward
-    let fastForward = false;
     let fastForwardHeld = false;  // spacebar hold
     let fastForwardToggle = false; // button toggle
+    let wasFastForward = false;   // track transitions
     const FF_SPEED = 4; // run up to 4 frames per RAF tick when fast-forwarding
 
     function isFastForward() {
@@ -120,6 +120,14 @@
         const ff = isFastForward();
         let framesRun = 0;
 
+        // Flush audio buffer when transitioning out of FF to prevent
+        // backlog lag and scratchy playback
+        if (wasFastForward && !ff) {
+            audioBuffer = [];
+            audioBufferPos = 0;
+        }
+        wasFastForward = ff;
+
         // During fast-forward, multiply the effective elapsed time so the
         // accumulator fills up enough for FF_SPEED frames per tick.
         if (ff) {
@@ -131,14 +139,13 @@
             framesRun++;
             frameTimeAccumulator -= FRAME_DURATION;
 
-            // Process audio - skip during fast-forward to avoid corruption
-            if (!ff && soundEnabled && audioCtx && audioCtx.state === 'running') {
+            // Queue audio from every frame (including FF — gives sped-up music)
+            if (soundEnabled && audioCtx && audioCtx.state === 'running') {
                 const samples = gbGetAudio();
                 if (samples && samples.length > 0) {
                     queueAudio(samples);
                 }
             } else {
-                // Drain audio buffer so it doesn't accumulate
                 gbGetAudio();
             }
 
