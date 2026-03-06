@@ -5,10 +5,14 @@
     let running = false;
     let soundEnabled = true;
     let audioCtx = null;
-    let audioWorklet = null;
+    let audioScriptNode = null;
     let frameBuffer = null;
     let canvas, ctx, imageData;
     let animFrameId = null;
+
+    // Double-buffering: render to offscreen, then blit to visible canvas
+    let offCanvas = null;
+    let offCtx = null;
 
     // Frame timing
     const FRAME_DURATION = 1000 / 59.7273; // ~16.74ms - Game Boy's exact refresh rate
@@ -23,6 +27,27 @@
 
     function isFastForward() {
         return fastForwardHeld || fastForwardToggle;
+    }
+
+    // ── Audio ring buffer (typed Float32Array, zero GC) ──────────────
+    const AUDIO_RING_SIZE = 65536; // power of 2, ~1.5s at 44100
+    const AUDIO_RING_MASK = AUDIO_RING_SIZE - 1;
+    let audioRing = null;   // Float32Array
+    let audioWritePos = 0;  // producer cursor
+    let audioReadPos = 0;   // consumer cursor
+
+    function audioRingAvailable() {
+        return (audioWritePos - audioReadPos) & AUDIO_RING_MASK;
+    }
+
+    function audioRingFree() {
+        // Leave 1 slot empty to distinguish full vs empty
+        return (AUDIO_RING_SIZE - 1) - audioRingAvailable();
+    }
+
+    function audioRingClear() {
+        audioWritePos = 0;
+        audioReadPos = 0;
     }
 
     // Initialize WASM
@@ -46,10 +71,16 @@
         // Wait for Go to initialize
         await new Promise(r => setTimeout(r, 100));
 
-        // Setup canvas
+        // Setup canvas with double-buffering
         canvas = document.getElementById('screen');
         ctx = canvas.getContext('2d');
-        imageData = ctx.createImageData(160, 144);
+
+        offCanvas = document.createElement('canvas');
+        offCanvas.width = 160;
+        offCanvas.height = 144;
+        offCtx = offCanvas.getContext('2d');
+        imageData = offCtx.createImageData(160, 144);
+
         frameBuffer = new Uint8Array(160 * 144 * 4);
 
         // Fill with default GB green
@@ -120,11 +151,13 @@
         const ff = isFastForward();
         let framesRun = 0;
 
-        // Flush audio buffer when transitioning out of FF to prevent
-        // backlog lag and scratchy playback
+        // Handle FF ↔ normal transitions
         if (wasFastForward && !ff) {
-            audioBuffer = [];
-            audioBufferPos = 0;
+            // Leaving FF: flush audio ring + reset timing so we don't
+            // lurch through banked-up accumulator time
+            audioRingClear();
+            frameTimeAccumulator = 0;
+            lastFrameTime = now;
         }
         wasFastForward = ff;
 
@@ -169,8 +202,11 @@
     }
 
     function renderFrame() {
+        // Write to offscreen canvas, then blit — the browser composites
+        // drawImage atomically, preventing mid-scanline tearing.
         imageData.data.set(frameBuffer);
-        ctx.putImageData(imageData, 0, 0);
+        offCtx.putImageData(imageData, 0, 0);
+        ctx.drawImage(offCanvas, 0, 0);
     }
 
     // Fast-forward indicator
@@ -181,9 +217,7 @@
         }
     }
 
-    // Audio setup using ScriptProcessorNode (widely supported)
-    let audioBuffer = [];
-    let audioBufferPos = 0;
+    // ── Audio engine (ring-buffer backed) ────────────────────────────
 
     function initAudio() {
         if (audioCtx) return;
@@ -193,43 +227,56 @@
                 sampleRate: 44100
             });
 
-            // Create a ScriptProcessorNode for audio output
-            const bufferSize = 2048;
-            audioWorklet = audioCtx.createScriptProcessor(bufferSize, 0, 2);
-            audioWorklet.onaudioprocess = function(e) {
-                const left = e.outputBuffer.getChannelData(0);
-                const right = e.outputBuffer.getChannelData(1);
+            // Allocate ring buffer
+            audioRing = new Float32Array(AUDIO_RING_SIZE);
+            audioRingClear();
 
-                for (let i = 0; i < bufferSize; i++) {
-                    if (audioBufferPos < audioBuffer.length - 1) {
-                        left[i] = audioBuffer[audioBufferPos++];
-                        right[i] = audioBuffer[audioBufferPos++];
-                    } else {
-                        left[i] = 0;
-                        right[i] = 0;
-                    }
+            // ScriptProcessorNode — reads from ring buffer
+            var bufferSize = 2048;
+            audioScriptNode = audioCtx.createScriptProcessor(bufferSize, 0, 2);
+            audioScriptNode.onaudioprocess = function(e) {
+                var left = e.outputBuffer.getChannelData(0);
+                var right = e.outputBuffer.getChannelData(1);
+                var avail = audioRingAvailable();
+                // We need 2 floats per stereo sample (L + R)
+                var samplePairs = Math.min(bufferSize, avail >>> 1);
+
+                var i = 0;
+                for (; i < samplePairs; i++) {
+                    left[i] = audioRing[audioReadPos];
+                    audioReadPos = (audioReadPos + 1) & AUDIO_RING_MASK;
+                    right[i] = audioRing[audioReadPos];
+                    audioReadPos = (audioReadPos + 1) & AUDIO_RING_MASK;
                 }
-
-                // Trim consumed samples
-                if (audioBufferPos > 0) {
-                    audioBuffer = audioBuffer.slice(audioBufferPos);
-                    audioBufferPos = 0;
+                // Fill remainder with silence
+                for (; i < bufferSize; i++) {
+                    left[i] = 0;
+                    right[i] = 0;
                 }
             };
-            audioWorklet.connect(audioCtx.destination);
+            audioScriptNode.connect(audioCtx.destination);
         } catch (e) {
             console.warn('Audio init failed:', e);
         }
     }
 
     function queueAudio(samples) {
-        // Keep buffer from growing too large (drop old samples if behind)
-        const maxBuffer = 44100; // ~1 second
-        if (audioBuffer.length > maxBuffer) {
-            audioBuffer = audioBuffer.slice(audioBuffer.length - maxBuffer / 2);
+        if (!audioRing) return;
+
+        var len = samples.length;
+        var free = audioRingFree();
+
+        if (len > free) {
+            // Buffer full — drop oldest samples by advancing read cursor.
+            // Advance by just enough to make room, keeps audio mostly intact
+            // instead of hard-chopping half the buffer.
+            var drop = len - free;
+            audioReadPos = (audioReadPos + drop) & AUDIO_RING_MASK;
         }
-        for (let i = 0; i < samples.length; i++) {
-            audioBuffer.push(samples[i]);
+
+        for (var i = 0; i < len; i++) {
+            audioRing[audioWritePos] = samples[i];
+            audioWritePos = (audioWritePos + 1) & AUDIO_RING_MASK;
         }
     }
 
