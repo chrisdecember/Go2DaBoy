@@ -200,6 +200,10 @@ go test -v ./emulator/test/
 
 Test ROMs go in `emulator/test/testdata/blargg/`.
 
+## License
+
+This project is free software, released under the [GNU General Public License v3.0](LICENSE). You're free to use, modify, and distribute it — as long as you keep it open.
+
 ---
 
 <p align="center">
