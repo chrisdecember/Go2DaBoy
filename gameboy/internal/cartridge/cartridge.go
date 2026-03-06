@@ -113,9 +113,9 @@ func (c *Cartridge) initMBC() {
 	case 0x06: // MBC2+BATTERY
 		c.MBC = NewMBC2(c.Data)
 	case 0x08: // ROM+RAM
-		c.MBC = NewMBC0(c.Data)
+		c.MBC = NewMBC0RAM(c.Data, ramSize)
 	case 0x09: // ROM+RAM+BATTERY
-		c.MBC = NewMBC0(c.Data)
+		c.MBC = NewMBC0RAM(c.Data, ramSize)
 	case 0x0F, 0x10, 0x11, 0x12, 0x13: // MBC3 variants
 		c.MBC = NewMBC3(c.Data, ramSize)
 	case 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E: // MBC5 variants

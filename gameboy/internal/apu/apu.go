@@ -28,8 +28,8 @@ type APU struct {
 	frameSeqCounter int
 	frameSeqStep    uint8
 
-	// Sample generation
-	sampleCounter float64
+	// Sample generation (integer counter avoids float64 ops in hot loop)
+	sampleCounter int
 	sampleBuffer  []float32
 	bufferPos     int
 }
@@ -399,10 +399,10 @@ func (a *APU) Step(cycles int) {
 		a.clockCh3()
 		a.clockCh4()
 
-		// Generate sample
-		a.sampleCounter += float64(sampleRate)
-		if a.sampleCounter >= float64(cpuFreq) {
-			a.sampleCounter -= float64(cpuFreq)
+		// Generate sample (integer arithmetic — no float64 in hot path)
+		a.sampleCounter += sampleRate
+		if a.sampleCounter >= cpuFreq {
+			a.sampleCounter -= cpuFreq
 			a.generateSample()
 		}
 	}
@@ -673,12 +673,12 @@ func (a *APU) generateSample() {
 	}
 }
 
-// GetSamples returns the current audio sample buffer and resets it
+// GetSamples returns the current audio sample buffer and resets it.
+// The returned slice is valid until the next call to Step or GetSamples.
 func (a *APU) GetSamples() []float32 {
-	samples := make([]float32, a.bufferPos)
-	copy(samples, a.sampleBuffer[:a.bufferPos])
+	n := a.bufferPos
 	a.bufferPos = 0
-	return samples
+	return a.sampleBuffer[:n]
 }
 
 // GetSampleRate returns the audio sample rate
