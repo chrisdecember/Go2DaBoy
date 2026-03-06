@@ -119,9 +119,14 @@
 
         const ff = isFastForward();
         let framesRun = 0;
-        const maxFrames = ff ? FF_SPEED : 1;
 
-        while (frameTimeAccumulator >= FRAME_DURATION && framesRun < maxFrames) {
+        // During fast-forward, multiply the effective elapsed time so the
+        // accumulator fills up enough for FF_SPEED frames per tick.
+        if (ff) {
+            frameTimeAccumulator += (FF_SPEED - 1) * Math.min(elapsed, FRAME_DURATION * 2);
+        }
+
+        while (frameTimeAccumulator >= FRAME_DURATION) {
             gbRunFrame();
             framesRun++;
             frameTimeAccumulator -= FRAME_DURATION;
@@ -136,16 +141,11 @@
                 // Drain audio buffer so it doesn't accumulate
                 gbGetAudio();
             }
-        }
 
-        // If fast-forwarding, drain any remaining accumulated time so we don't
-        // try to "catch up" a huge backlog when FF ends
-        if (ff) {
-            // Run additional frames without the maxFrames cap during FF
-            while (frameTimeAccumulator >= FRAME_DURATION) {
-                gbRunFrame();
-                gbGetAudio(); // drain
-                frameTimeAccumulator -= FRAME_DURATION;
+            // Hard cap to avoid blocking the browser
+            if (framesRun >= FF_SPEED) {
+                if (ff) frameTimeAccumulator = 0; // don't bank leftover time
+                break;
             }
         }
 
