@@ -32,6 +32,10 @@ type APU struct {
 	sampleCounter int
 	sampleBuffer  []float32
 	bufferPos     int
+
+	// High-pass filter capacitors (removes DC offset — Game Boy hardware
+	// has an analog HPF that centers the waveform around zero)
+	hpfCapL, hpfCapR float32
 }
 
 type squareChannel struct {
@@ -664,6 +668,16 @@ func (a *APU) generateSample() {
 
 	left = left * leftVol / 4.0
 	right = right * rightVol / 4.0
+
+	// High-pass filter: removes DC offset so waveform is centered at zero.
+	// Without this, square waves sit at a positive DC level and channel
+	// on/off transitions cause audible clicks from DC level shifts.
+	// Charge factor 0.998 ≈ 14 Hz cutoff at 44100 Hz sample rate.
+	const hpfCharge float32 = 0.002 // 1 - 0.998
+	a.hpfCapL += (left - a.hpfCapL) * hpfCharge
+	left -= a.hpfCapL
+	a.hpfCapR += (right - a.hpfCapR) * hpfCharge
+	right -= a.hpfCapR
 
 	a.sampleBuffer[a.bufferPos] = left
 	a.bufferPos++

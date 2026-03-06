@@ -277,11 +277,11 @@
             framesRun++;
             frameTimeAccumulator -= FRAME_DURATION;
 
-            // Only queue audio at normal speed. During FF the 4x production
-            // rate overflows the ring buffer causing sample drops → clicks.
-            if (soundEnabled && audioCtx && audioCtx.state === 'running' && !ff) {
+            // During FF, only queue every FF_SPEED-th frame to keep the
+            // ring buffer from overflowing while still producing audio.
+            if (soundEnabled && audioCtx && audioCtx.state === 'running') {
                 var samples = gbGetAudio();
-                if (samples && samples.length > 0) {
+                if (samples && samples.length > 0 && (!ff || framesRun % FF_SPEED === 1)) {
                     queueAudio(samples);
                 }
             } else {
