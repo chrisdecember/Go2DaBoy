@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#0F380F">
+    <meta name="theme-color" content="#2D2D2D">
     <title>yukudanshi - Game Boy</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -17,48 +17,103 @@
             <p>Loading emulator...</p>
         </div>
 
-        <div id="emulator" class="hidden">
-            <div id="screen-container">
-                <div id="screen-bezel">
-                    <div id="screen-label">DOT MATRIX WITH STEREO SOUND</div>
-                    <canvas id="screen" width="160" height="144"></canvas>
-                    <div id="ff-indicator">&gt;&gt;</div>
-                    <div id="game-title"></div>
-                </div>
-            </div>
-
-            <div id="controls">
-                <div id="dpad-area">
-                    <div id="dpad">
-                        <button class="dpad-btn dpad-up" data-btn="6" aria-label="Up">&#9650;</button>
-                        <button class="dpad-btn dpad-left" data-btn="5" aria-label="Left">&#9664;</button>
-                        <button class="dpad-btn dpad-center"></button>
-                        <button class="dpad-btn dpad-right" data-btn="4" aria-label="Right">&#9654;</button>
-                        <button class="dpad-btn dpad-down" data-btn="7" aria-label="Down">&#9660;</button>
+        <div id="gameboy" class="hidden">
+            <div id="gb-shell">
+                <!-- Screen section -->
+                <div id="screen-area">
+                    <div id="power-led"></div>
+                    <div id="screen-bezel">
+                        <div id="bezel-lines">
+                            <div class="bezel-line line-wine"></div>
+                            <div class="bezel-line line-navy"></div>
+                        </div>
+                        <div id="screen-label">DOT MATRIX WITH STEREO SOUND</div>
+                        <div id="screen-well">
+                            <canvas id="screen" width="160" height="144"></canvas>
+                            <div id="ff-indicator">&gt;&gt;</div>
+                        </div>
+                        <div id="game-title"></div>
                     </div>
                 </div>
 
-                <div id="action-area">
-                    <div id="action-buttons">
-                        <button class="action-btn" id="btn-b" data-btn="1">B</button>
-                        <button class="action-btn" id="btn-a" data-btn="0">A</button>
+                <!-- Brand -->
+                <div id="brand">
+                    <span id="brand-sub">yukudanshi</span>
+                    <span id="brand-main">GAME BOY</span>
+                </div>
+
+                <!-- D-Pad + A/B -->
+                <div id="controls">
+                    <div id="dpad-container">
+                        <div id="dpad">
+                            <button class="dpad-btn dpad-up" data-btn="6" aria-label="Up"></button>
+                            <button class="dpad-btn dpad-left" data-btn="5" aria-label="Left"></button>
+                            <div class="dpad-nub"></div>
+                            <button class="dpad-btn dpad-right" data-btn="4" aria-label="Right"></button>
+                            <button class="dpad-btn dpad-down" data-btn="7" aria-label="Down"></button>
+                        </div>
                     </div>
+
+                    <div id="ab-container">
+                        <div id="ab-group">
+                            <div class="ab-wrap">
+                                <button class="ab-btn" id="btn-b" data-btn="1"></button>
+                                <span class="ab-label">B</span>
+                            </div>
+                            <div class="ab-wrap">
+                                <button class="ab-btn" id="btn-a" data-btn="0"></button>
+                                <span class="ab-label">A</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Select / Start -->
+                <div id="ss-area">
+                    <div class="ss-wrap">
+                        <button class="ss-btn" data-btn="2" aria-label="Select"></button>
+                        <span class="ss-label">SELECT</span>
+                    </div>
+                    <div class="ss-wrap">
+                        <button class="ss-btn" data-btn="3" aria-label="Start"></button>
+                        <span class="ss-label">START</span>
+                    </div>
+                </div>
+
+                <!-- Speaker grille -->
+                <div id="speaker">
+                    <div class="grille-slot"></div>
+                    <div class="grille-slot"></div>
+                    <div class="grille-slot"></div>
+                    <div class="grille-slot"></div>
+                    <div class="grille-slot"></div>
+                    <div class="grille-slot"></div>
                 </div>
             </div>
 
-            <div id="menu-buttons">
-                <button class="menu-btn" id="btn-select" data-btn="2">SELECT</button>
-                <button class="menu-btn" id="btn-start" data-btn="3">START</button>
-            </div>
-
+            <!-- Toolbar (below the shell) -->
             <div id="toolbar">
-                <label id="rom-loader" class="toolbar-btn">
-                    LOAD ROM
+                <label class="toolbar-btn">
+                    LOAD
                     <input type="file" id="rom-input" accept=".gb,.gbc,.bin" hidden>
                 </label>
                 <button id="btn-reset" class="toolbar-btn">RESET</button>
-                <button id="btn-sound" class="toolbar-btn">SOUND: ON</button>
+                <button id="btn-sound" class="toolbar-btn">SND: ON</button>
                 <button id="btn-ff" class="toolbar-btn">FF</button>
+                <button id="btn-controls" class="toolbar-btn">KEYS</button>
+            </div>
+        </div>
+
+        <!-- Keyboard controls modal -->
+        <div id="controls-modal" class="hidden">
+            <div id="modal-overlay"></div>
+            <div id="modal-content">
+                <h2>Keyboard Controls</h2>
+                <div id="bindings-list"></div>
+                <div id="modal-buttons">
+                    <button id="btn-reset-bindings">Reset Defaults</button>
+                    <button id="btn-close-modal">Close</button>
+                </div>
             </div>
         </div>
     </div>

@@ -23,25 +23,24 @@
     let fastForwardHeld = false;  // spacebar hold
     let fastForwardToggle = false; // button toggle
     let wasFastForward = false;   // track transitions
-    const FF_SPEED = 4; // run up to 4 frames per RAF tick when fast-forwarding
+    const FF_SPEED = 4;
 
     function isFastForward() {
         return fastForwardHeld || fastForwardToggle;
     }
 
     // ── Audio ring buffer (typed Float32Array, zero GC) ──────────────
-    const AUDIO_RING_SIZE = 65536; // power of 2, ~1.5s at 44100
+    const AUDIO_RING_SIZE = 65536;
     const AUDIO_RING_MASK = AUDIO_RING_SIZE - 1;
-    let audioRing = null;   // Float32Array
-    let audioWritePos = 0;  // producer cursor
-    let audioReadPos = 0;   // consumer cursor
+    let audioRing = null;
+    let audioWritePos = 0;
+    let audioReadPos = 0;
 
     function audioRingAvailable() {
         return (audioWritePos - audioReadPos) & AUDIO_RING_MASK;
     }
 
     function audioRingFree() {
-        // Leave 1 slot empty to distinguish full vs empty
         return (AUDIO_RING_SIZE - 1) - audioRingAvailable();
     }
 
@@ -50,26 +49,130 @@
         audioReadPos = 0;
     }
 
-    // Initialize WASM
+    // ── Rebindable keyboard controls ─────────────────────────────────
+
+    var DEFAULT_BINDINGS = {
+        up:     'ArrowUp',
+        down:   'ArrowDown',
+        left:   'ArrowLeft',
+        right:  'ArrowRight',
+        a:      'KeyX',
+        b:      'KeyZ',
+        start:  'Enter',
+        select: 'ShiftLeft',
+        ff:     'Space'
+    };
+
+    var ACTION_TO_BTN = {
+        up: 6, down: 7, left: 5, right: 4,
+        a: 0, b: 1, start: 3, select: 2
+        // ff is special — not a Game Boy button
+    };
+
+    var BINDING_DISPLAY = {
+        up:     'D-Pad Up',
+        down:   'D-Pad Down',
+        left:   'D-Pad Left',
+        right:  'D-Pad Right',
+        a:      'A Button',
+        b:      'B Button',
+        start:  'Start',
+        select: 'Select',
+        ff:     'Fast Forward'
+    };
+
+    var BINDING_ORDER = ['up','down','left','right','a','b','start','select','ff'];
+
+    var keyBindings = {};
+    var keyMap = {};        // code → action reverse lookup
+    var modalOpen = false;
+    var rebinding = false;
+    var rebindAction = null;
+
+    function loadBindings() {
+        try {
+            var saved = localStorage.getItem('gb-keybindings');
+            if (saved) {
+                keyBindings = JSON.parse(saved);
+                // Ensure all actions have a binding
+                for (var i = 0; i < BINDING_ORDER.length; i++) {
+                    var k = BINDING_ORDER[i];
+                    if (!(k in keyBindings)) keyBindings[k] = DEFAULT_BINDINGS[k];
+                }
+                return;
+            }
+        } catch(e) {}
+        keyBindings = {};
+        for (var key in DEFAULT_BINDINGS) keyBindings[key] = DEFAULT_BINDINGS[key];
+    }
+
+    function saveBindings() {
+        try {
+            localStorage.setItem('gb-keybindings', JSON.stringify(keyBindings));
+        } catch(e) {}
+    }
+
+    function buildKeyMap() {
+        var map = {};
+        for (var action in keyBindings) {
+            map[keyBindings[action]] = action;
+        }
+        return map;
+    }
+
+    function keyDisplayName(code) {
+        if (!code) return '\u2014';
+        if (code.startsWith('Key')) return code.slice(3);
+        if (code.startsWith('Digit')) return code.slice(5);
+        var names = {
+            'ArrowUp': '\u2191', 'ArrowDown': '\u2193',
+            'ArrowLeft': '\u2190', 'ArrowRight': '\u2192',
+            'Space': 'SPACE', 'Enter': 'ENTER',
+            'ShiftLeft': 'L-SHIFT', 'ShiftRight': 'R-SHIFT',
+            'ControlLeft': 'L-CTRL', 'ControlRight': 'R-CTRL',
+            'AltLeft': 'L-ALT', 'AltRight': 'R-ALT',
+            'Backspace': 'BKSP', 'Tab': 'TAB',
+            'CapsLock': 'CAPS', 'Escape': 'ESC',
+            'MetaLeft': 'L-META', 'MetaRight': 'R-META',
+            'Semicolon': ';', 'Equal': '=', 'Comma': ',',
+            'Minus': '-', 'Period': '.', 'Slash': '/',
+            'Backquote': '`', 'BracketLeft': '[', 'BracketRight': ']',
+            'Backslash': '\\', 'Quote': "'",
+            'Delete': 'DEL', 'Insert': 'INS',
+            'Home': 'HOME', 'End': 'END',
+            'PageUp': 'PGUP', 'PageDown': 'PGDN',
+            'NumpadEnter': 'NUM-ENTER',
+            'NumpadAdd': 'NUM+', 'NumpadSubtract': 'NUM-',
+            'NumpadMultiply': 'NUM*', 'NumpadDivide': 'NUM/',
+            'NumpadDecimal': 'NUM.',
+            'Numpad0': 'NUM0', 'Numpad1': 'NUM1', 'Numpad2': 'NUM2',
+            'Numpad3': 'NUM3', 'Numpad4': 'NUM4', 'Numpad5': 'NUM5',
+            'Numpad6': 'NUM6', 'Numpad7': 'NUM7', 'Numpad8': 'NUM8',
+            'Numpad9': 'NUM9',
+            'F1':'F1','F2':'F2','F3':'F3','F4':'F4','F5':'F5','F6':'F6',
+            'F7':'F7','F8':'F8','F9':'F9','F10':'F10','F11':'F11','F12':'F12'
+        };
+        return names[code] || code;
+    }
+
+    // ── Initialize WASM ──────────────────────────────────────────────
+
     async function init() {
-        const go = new Go();
-        let result;
+        var go = new Go();
+        var result;
         try {
             result = await WebAssembly.instantiateStreaming(
                 fetch('main.wasm'),
                 go.importObject
             );
         } catch (e) {
-            // Fallback for servers that don't set correct MIME type
-            const resp = await fetch('main.wasm');
-            const bytes = await resp.arrayBuffer();
+            var resp = await fetch('main.wasm');
+            var bytes = await resp.arrayBuffer();
             result = await WebAssembly.instantiate(bytes, go.importObject);
         }
 
         go.run(result.instance);
-
-        // Wait for Go to initialize
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(function(r) { setTimeout(r, 100); });
 
         // Setup canvas with double-buffering
         canvas = document.getElementById('screen');
@@ -84,51 +187,57 @@
         frameBuffer = new Uint8Array(160 * 144 * 4);
 
         // Fill with default GB green
-        for (let i = 0; i < frameBuffer.length; i += 4) {
-            frameBuffer[i] = 0x9B;
+        for (var i = 0; i < frameBuffer.length; i += 4) {
+            frameBuffer[i]   = 0x9B;
             frameBuffer[i+1] = 0xBC;
             frameBuffer[i+2] = 0x0F;
             frameBuffer[i+3] = 0xFF;
         }
         renderFrame();
 
-        // Setup UI
         setupControls();
         setupFileInput();
         setupKeyboard();
+        setupModal();
 
-        // Show emulator
         document.getElementById('loading-screen').classList.add('hidden');
-        document.getElementById('emulator').classList.remove('hidden');
+        document.getElementById('gameboy').classList.remove('hidden');
     }
 
+    // ── File input ───────────────────────────────────────────────────
+
     function setupFileInput() {
-        const input = document.getElementById('rom-input');
+        var input = document.getElementById('rom-input');
         input.addEventListener('change', function(e) {
-            const file = e.target.files[0];
+            var file = e.target.files[0];
             if (!file) return;
 
-            const reader = new FileReader();
+            var reader = new FileReader();
             reader.onload = function(ev) {
-                const data = new Uint8Array(ev.target.result);
-                const err = gbLoadROM(data);
+                var data = new Uint8Array(ev.target.result);
+                var err = gbLoadROM(data);
                 if (err && err !== '') {
                     alert('Failed to load ROM: ' + err);
                     return;
                 }
 
                 romLoaded = true;
-                const title = gbGetTitle();
+                var title = gbGetTitle();
                 document.getElementById('game-title').textContent = title || file.name;
+
+                // Light up power LED
+                var led = document.getElementById('power-led');
+                if (led) led.classList.add('on');
 
                 initAudio();
                 startEmulation();
             };
             reader.readAsArrayBuffer(file);
-            // Reset input so same file can be reloaded
             input.value = '';
         });
     }
+
+    // ── Emulation loop ───────────────────────────────────────────────
 
     function startEmulation() {
         if (running) return;
@@ -141,28 +250,22 @@
     function emulationLoop() {
         if (!running || !romLoaded) return;
 
-        const now = performance.now();
-        const elapsed = now - lastFrameTime;
+        var now = performance.now();
+        var elapsed = now - lastFrameTime;
         lastFrameTime = now;
 
-        // Cap accumulated time to prevent spiral of death (e.g. after tab switch)
         frameTimeAccumulator += Math.min(elapsed, FRAME_DURATION * 8);
 
-        const ff = isFastForward();
-        let framesRun = 0;
+        var ff = isFastForward();
+        var framesRun = 0;
 
-        // Handle FF ↔ normal transitions
         if (wasFastForward && !ff) {
-            // Leaving FF: flush audio ring + reset timing so we don't
-            // lurch through banked-up accumulator time
             audioRingClear();
             frameTimeAccumulator = 0;
             lastFrameTime = now;
         }
         wasFastForward = ff;
 
-        // During fast-forward, multiply the effective elapsed time so the
-        // accumulator fills up enough for FF_SPEED frames per tick.
         if (ff) {
             frameTimeAccumulator += (FF_SPEED - 1) * Math.min(elapsed, FRAME_DURATION * 2);
         }
@@ -172,9 +275,8 @@
             framesRun++;
             frameTimeAccumulator -= FRAME_DURATION;
 
-            // Queue audio from every frame (including FF — gives sped-up music)
             if (soundEnabled && audioCtx && audioCtx.state === 'running') {
-                const samples = gbGetAudio();
+                var samples = gbGetAudio();
                 if (samples && samples.length > 0) {
                     queueAudio(samples);
                 }
@@ -182,65 +284,50 @@
                 gbGetAudio();
             }
 
-            // Hard cap to avoid blocking the browser
             if (framesRun >= FF_SPEED) {
-                if (ff) frameTimeAccumulator = 0; // don't bank leftover time
+                if (ff) frameTimeAccumulator = 0;
                 break;
             }
         }
 
-        // Only render the latest frame (skip rendering intermediate catch-up frames)
         if (framesRun > 0) {
             gbGetFrame(frameBuffer);
             renderFrame();
         }
 
-        // Update FF indicator
         updateFastForwardIndicator(ff);
-
         animFrameId = requestAnimationFrame(emulationLoop);
     }
 
     function renderFrame() {
-        // Write to offscreen canvas, then blit — the browser composites
-        // drawImage atomically, preventing mid-scanline tearing.
         imageData.data.set(frameBuffer);
         offCtx.putImageData(imageData, 0, 0);
         ctx.drawImage(offCanvas, 0, 0);
     }
 
-    // Fast-forward indicator
     function updateFastForwardIndicator(active) {
-        const indicator = document.getElementById('ff-indicator');
-        if (indicator) {
-            indicator.classList.toggle('active', active);
-        }
+        var indicator = document.getElementById('ff-indicator');
+        if (indicator) indicator.classList.toggle('active', active);
     }
 
-    // ── Audio engine (ring-buffer backed) ────────────────────────────
+    // ── Audio engine ─────────────────────────────────────────────────
 
     function initAudio() {
         if (audioCtx) return;
-
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)({
                 sampleRate: 44100
             });
-
-            // Allocate ring buffer
             audioRing = new Float32Array(AUDIO_RING_SIZE);
             audioRingClear();
 
-            // ScriptProcessorNode — reads from ring buffer
             var bufferSize = 2048;
             audioScriptNode = audioCtx.createScriptProcessor(bufferSize, 0, 2);
             audioScriptNode.onaudioprocess = function(e) {
                 var left = e.outputBuffer.getChannelData(0);
                 var right = e.outputBuffer.getChannelData(1);
                 var avail = audioRingAvailable();
-                // We need 2 floats per stereo sample (L + R)
                 var samplePairs = Math.min(bufferSize, avail >>> 1);
-
                 var i = 0;
                 for (; i < samplePairs; i++) {
                     left[i] = audioRing[audioReadPos];
@@ -248,7 +335,6 @@
                     right[i] = audioRing[audioReadPos];
                     audioReadPos = (audioReadPos + 1) & AUDIO_RING_MASK;
                 }
-                // Fill remainder with silence
                 for (; i < bufferSize; i++) {
                     left[i] = 0;
                     right[i] = 0;
@@ -262,38 +348,31 @@
 
     function queueAudio(samples) {
         if (!audioRing) return;
-
         var len = samples.length;
         var free = audioRingFree();
-
         if (len > free) {
-            // Buffer full — drop oldest samples by advancing read cursor.
-            // Advance by just enough to make room, keeps audio mostly intact
-            // instead of hard-chopping half the buffer.
             var drop = len - free;
             audioReadPos = (audioReadPos + drop) & AUDIO_RING_MASK;
         }
-
         for (var i = 0; i < len; i++) {
             audioRing[audioWritePos] = samples[i];
             audioWritePos = (audioWritePos + 1) & AUDIO_RING_MASK;
         }
     }
 
-    // Resume audio on user interaction (required by browsers)
     function resumeAudio() {
         if (audioCtx && audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
     }
 
-    // Controls - touch and mouse
-    function setupControls() {
-        const buttons = document.querySelectorAll('[data-btn]');
-        buttons.forEach(function(btn) {
-            const code = parseInt(btn.dataset.btn);
+    // ── Touch / mouse controls ───────────────────────────────────────
 
-            // Touch events
+    function setupControls() {
+        var buttons = document.querySelectorAll('[data-btn]');
+        buttons.forEach(function(btn) {
+            var code = parseInt(btn.dataset.btn);
+
             btn.addEventListener('touchstart', function(e) {
                 e.preventDefault();
                 resumeAudio();
@@ -312,7 +391,6 @@
                 if (romLoaded) gbKeyUp(code);
             });
 
-            // Mouse events (for desktop testing)
             btn.addEventListener('mousedown', function(e) {
                 e.preventDefault();
                 resumeAudio();
@@ -333,17 +411,15 @@
             });
         });
 
-        // Reset button
+        // Reset
         document.getElementById('btn-reset').addEventListener('click', function() {
-            if (romLoaded) {
-                gbReset();
-            }
+            if (romLoaded) gbReset();
         });
 
         // Sound toggle
         document.getElementById('btn-sound').addEventListener('click', function() {
             soundEnabled = !soundEnabled;
-            this.textContent = 'SOUND: ' + (soundEnabled ? 'ON' : 'OFF');
+            this.textContent = 'SND: ' + (soundEnabled ? 'ON' : 'OFF');
             if (!soundEnabled && audioCtx) {
                 audioCtx.suspend();
             } else if (soundEnabled && audioCtx) {
@@ -351,26 +427,30 @@
             }
         });
 
-        // Fast-forward toggle button
+        // Fast-forward toggle
         document.getElementById('btn-ff').addEventListener('click', function() {
             fastForwardToggle = !fastForwardToggle;
             this.textContent = fastForwardToggle ? 'FF: ON' : 'FF';
         });
 
-        // Fast-forward touch support (hold to FF)
+        // FF touch hold
         var ffBtn = document.getElementById('btn-ff');
         ffBtn.addEventListener('touchstart', function(e) {
-            // If toggle is already on, let the click handler manage it
             if (fastForwardToggle) return;
             e.preventDefault();
             fastForwardHeld = true;
         }, { passive: false });
-        ffBtn.addEventListener('touchend', function(e) {
+        ffBtn.addEventListener('touchend', function() {
             if (fastForwardToggle) return;
             fastForwardHeld = false;
         });
         ffBtn.addEventListener('touchcancel', function() {
             fastForwardHeld = false;
+        });
+
+        // Controls modal button
+        document.getElementById('btn-controls').addEventListener('click', function() {
+            openControlsModal();
         });
 
         // Prevent context menu on long press
@@ -379,54 +459,160 @@
         });
     }
 
-    // Keyboard mapping for desktop
+    // ── Keyboard ─────────────────────────────────────────────────────
+
     function setupKeyboard() {
-        const keyMap = {
-            'ArrowUp': 6,
-            'ArrowDown': 7,
-            'ArrowLeft': 5,
-            'ArrowRight': 4,
-            'z': 1, 'Z': 1,       // B
-            'x': 0, 'X': 0,       // A
-            'Enter': 3,            // Start
-            'Shift': 2,            // Select
-            'Backspace': 2,        // Select (alt)
-            'a': 1, 'A': 1,       // B (alt)
-            's': 0, 'S': 0,       // A (alt)
-        };
+        loadBindings();
+        keyMap = buildKeyMap();
 
         document.addEventListener('keydown', function(e) {
-            // Spacebar = hold fast-forward
-            if (e.code === 'Space') {
-                e.preventDefault();
+            if (modalOpen) return;
+
+            var action = keyMap[e.code];
+            if (!action) return;
+            e.preventDefault();
+
+            if (action === 'ff') {
                 fastForwardHeld = true;
                 return;
             }
 
-            const btn = keyMap[e.key];
+            var btn = ACTION_TO_BTN[action];
             if (btn !== undefined && romLoaded) {
-                e.preventDefault();
                 resumeAudio();
                 gbKeyDown(btn);
+                // Visual feedback on on-screen button
+                var el = document.querySelector('[data-btn="' + btn + '"]');
+                if (el) el.classList.add('pressed');
             }
         });
 
         document.addEventListener('keyup', function(e) {
-            if (e.code === 'Space') {
-                e.preventDefault();
+            if (modalOpen) return;
+
+            var action = keyMap[e.code];
+            if (!action) return;
+            e.preventDefault();
+
+            if (action === 'ff') {
                 fastForwardHeld = false;
                 return;
             }
 
-            const btn = keyMap[e.key];
+            var btn = ACTION_TO_BTN[action];
             if (btn !== undefined && romLoaded) {
-                e.preventDefault();
                 gbKeyUp(btn);
+                var el = document.querySelector('[data-btn="' + btn + '"]');
+                if (el) el.classList.remove('pressed');
             }
         });
     }
 
-    // Boot
+    // ── Controls modal ───────────────────────────────────────────────
+
+    function setupModal() {
+        document.getElementById('modal-overlay').addEventListener('click', closeControlsModal);
+        document.getElementById('btn-close-modal').addEventListener('click', closeControlsModal);
+        document.getElementById('btn-reset-bindings').addEventListener('click', function() {
+            keyBindings = {};
+            for (var key in DEFAULT_BINDINGS) keyBindings[key] = DEFAULT_BINDINGS[key];
+            saveBindings();
+            keyMap = buildKeyMap();
+            renderBindings();
+        });
+    }
+
+    function openControlsModal() {
+        modalOpen = true;
+        document.getElementById('controls-modal').classList.remove('hidden');
+        renderBindings();
+    }
+
+    function closeControlsModal() {
+        modalOpen = false;
+        rebinding = false;
+        rebindAction = null;
+        document.getElementById('controls-modal').classList.add('hidden');
+    }
+
+    function renderBindings() {
+        var list = document.getElementById('bindings-list');
+        list.innerHTML = '';
+
+        for (var i = 0; i < BINDING_ORDER.length; i++) {
+            var action = BINDING_ORDER[i];
+            var row = document.createElement('div');
+            row.className = 'binding-row';
+
+            var label = document.createElement('span');
+            label.className = 'binding-label';
+            label.textContent = BINDING_DISPLAY[action];
+
+            var keyBtn = document.createElement('button');
+            keyBtn.className = 'binding-key';
+            keyBtn.textContent = keyDisplayName(keyBindings[action]);
+            keyBtn.setAttribute('data-action', action);
+            keyBtn.addEventListener('click', (function(act, btn) {
+                return function() { startRebind(act, btn); };
+            })(action, keyBtn));
+
+            row.appendChild(label);
+            row.appendChild(keyBtn);
+            list.appendChild(row);
+        }
+    }
+
+    function startRebind(action, btn) {
+        // Cancel any previous rebind
+        var prev = document.querySelector('.binding-key.listening');
+        if (prev) {
+            prev.classList.remove('listening');
+            prev.textContent = keyDisplayName(keyBindings[prev.getAttribute('data-action')]);
+        }
+
+        rebinding = true;
+        rebindAction = action;
+        btn.classList.add('listening');
+        btn.textContent = 'Press a key\u2026';
+
+        function onKey(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Escape cancels
+            if (e.code === 'Escape') {
+                btn.classList.remove('listening');
+                btn.textContent = keyDisplayName(keyBindings[action]);
+                rebinding = false;
+                rebindAction = null;
+                document.removeEventListener('keydown', onKey, true);
+                return;
+            }
+
+            // If this key is already bound to another action, swap
+            for (var other in keyBindings) {
+                if (other !== action && keyBindings[other] === e.code) {
+                    keyBindings[other] = keyBindings[action];
+                }
+            }
+
+            keyBindings[action] = e.code;
+            saveBindings();
+            keyMap = buildKeyMap();
+
+            btn.classList.remove('listening');
+            rebinding = false;
+            rebindAction = null;
+            document.removeEventListener('keydown', onKey, true);
+
+            renderBindings();
+        }
+
+        document.addEventListener('keydown', onKey, true);
+    }
+
+    // ── Boot ─────────────────────────────────────────────────────────
+
     init().catch(function(err) {
         console.error('Failed to initialize:', err);
         document.getElementById('loading-screen').innerHTML =
