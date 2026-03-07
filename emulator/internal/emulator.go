@@ -14,14 +14,15 @@ const cyclesPerFrame = 70224 // T-cycles per frame (~59.7 FPS)
 
 // Emulator represents the emulator core
 type Emulator struct {
-	Bus     *memory.Bus
-	CPU     *cpu.CPU
-	PPU     *ppu.PPU
-	APU     *apu.APU
-	Timer   *timer.Timer
-	Joypad  *joypad.Joypad
-	Cart    *cartridge.Cartridge
-	running bool
+	Bus            *memory.Bus
+	CPU            *cpu.CPU
+	PPU            *ppu.PPU
+	APU            *apu.APU
+	Timer          *timer.Timer
+	Joypad         *joypad.Joypad
+	Cart           *cartridge.Cartridge
+	running        bool
+	cycleOvershoot int // carry-over cycles from previous RunFrame to prevent drift
 }
 
 // New creates a new emulator instance
@@ -146,12 +147,16 @@ func (e *Emulator) Step() int {
 	return cycles
 }
 
-// RunFrame runs emulation for one frame (~70224 T-cycles)
+// RunFrame runs emulation for one frame (~70224 T-cycles).
+// Excess cycles from the last instruction are carried over to the next frame
+// to prevent drift that causes the frame boundary to cross VBlank, which
+// would leave a partially-rendered next frame in the buffer (visible as tearing).
 func (e *Emulator) RunFrame() {
-	cyclesThisFrame := 0
+	cyclesThisFrame := e.cycleOvershoot
 	for cyclesThisFrame < cyclesPerFrame {
 		cyclesThisFrame += e.Step()
 	}
+	e.cycleOvershoot = cyclesThisFrame - cyclesPerFrame
 }
 
 // Run starts the emulator main loop
