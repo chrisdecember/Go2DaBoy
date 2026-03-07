@@ -120,11 +120,31 @@ func (e *Emulator) Reset() {
 	e.Bus.Write(0xFFFF, 0x00) // IE
 }
 
-// Step executes one CPU instruction and returns T-cycles consumed.
-// All subsystems (PPU, Timer, APU, DMA) are advanced inline by Bus.Tick()
-// after each M-cycle within the instruction, giving M-cycle-accurate interleaving.
+// Step executes one CPU instruction and updates all subsystems
 func (e *Emulator) Step() int {
-	return e.CPU.Step()
+	cycles := e.CPU.Step()
+
+	// Update timer
+	if e.Timer.Step(cycles) {
+		e.Bus.RequestInterrupt(0x04) // Timer interrupt (bit 2)
+	}
+
+	// Update PPU
+	ppuIRQ := e.PPU.Step(cycles)
+	if ppuIRQ&0x01 != 0 {
+		e.Bus.RequestInterrupt(0x01) // VBlank interrupt (bit 0)
+	}
+	if ppuIRQ&0x02 != 0 {
+		e.Bus.RequestInterrupt(0x02) // STAT interrupt (bit 1)
+	}
+
+	// Update APU
+	e.APU.Step(cycles)
+
+	// Update DMA
+	e.Bus.StepDMA(cycles)
+
+	return cycles
 }
 
 // RunFrame runs emulation for one frame (~70224 T-cycles).

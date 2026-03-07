@@ -11,7 +11,6 @@ type CPU struct {
 	ime     bool // Interrupt Master Enable
 	eiDelay bool // EI enables IME after next instruction
 	haltBug bool // HALT bug: next PC increment is skipped
-	cycles  int  // T-cycle accumulator for current Step
 }
 
 func New(bus *memory.Bus) *CPU {
@@ -28,138 +27,101 @@ func (c *CPU) Reset() {
 	c.ime = false
 	c.eiDelay = false
 	c.haltBug = false
-	c.cycles = 0
 }
 
-// tick advances all subsystems by 1 M-cycle (4 T-cycles)
-func (c *CPU) tick() {
-	c.cycles += 4
-	c.Bus.Tick(4)
-}
-
-// read performs a bus read and ticks 1 M-cycle
-func (c *CPU) read(addr uint16) uint8 {
-	val := c.Bus.Read(addr)
-	c.tick()
-	return val
-}
-
-// write performs a bus write and ticks 1 M-cycle
-func (c *CPU) write(addr uint16, val uint8) {
-	c.Bus.Write(addr, val)
-	c.tick()
-}
-
-// idle ticks 1 M-cycle with no bus activity
-func (c *CPU) idle() {
-	c.tick()
-}
-
-// Step executes one instruction and returns T-cycles consumed.
-// Subsystems (PPU, Timer, APU, DMA) are advanced inline via Bus.Tick
-// after each M-cycle, giving M-cycle-accurate interleaving.
+// Step executes one instruction and returns T-cycles consumed
 func (c *CPU) Step() int {
-	c.cycles = 0
-
 	// Handle interrupts BEFORE EI takes effect
-	if c.handleInterrupts() {
-		return c.cycles
+	// This ensures the instruction after EI executes before interrupts fire
+	if cycles := c.handleInterrupts(); cycles > 0 {
+		return cycles
 	}
 
-	// If halted, consume 1 M-cycle doing nothing (bus still advances)
+	// If halted, consume 4 cycles doing nothing
 	if c.halted {
-		c.tick()
-		return c.cycles
+		return 4
 	}
 
-	// Fetch and execute opcode (fetchByte ticks 1 M-cycle for the fetch)
+	// Fetch and execute opcode
 	opcode := c.fetchByte()
-	c.execute(opcode)
+	cycles := c.execute(opcode)
 
 	// Apply pending EI AFTER instruction execution
+	// EI delays IME enable by one instruction per Pan Docs
 	if c.eiDelay {
 		c.eiDelay = false
 		c.ime = true
 	}
 
-	return c.cycles
+	return cycles
 }
 
-func (c *CPU) handleInterrupts() bool {
+func (c *CPU) handleInterrupts() int {
 	ifReg := c.Bus.GetIF()
 	ieReg := c.Bus.GetIE()
 	pending := ifReg & ieReg & 0x1F
 
 	if pending == 0 {
-		return false
+		return 0
 	}
 
 	// Any pending interrupt wakes from HALT regardless of IME
 	if c.halted {
 		c.halted = false
-		c.tick() // wake-up M-cycle
 	}
 
 	if !c.ime {
-		return false
+		return 0
 	}
 
 	// Service highest priority interrupt
-	// Dispatch timing: 2 idle + push_hi + push_lo + 1 idle = 5 M-cycles (20T)
 	c.ime = false
 	for bit := uint8(0); bit < 5; bit++ {
 		mask := uint8(1 << bit)
 		if pending&mask != 0 {
-			c.Bus.ClearInterruptBit(mask)
+			// Clear this interrupt flag bit
+			c.Bus.Write(0xFF0F, ifReg&^mask)
 
-			c.idle() // internal M-cycle 1
-			c.idle() // internal M-cycle 2
-			c.Regs.SP--
-			c.write(c.Regs.SP, uint8(c.Regs.PC>>8)) // push PC high
-			c.Regs.SP--
-			c.write(c.Regs.SP, uint8(c.Regs.PC&0xFF)) // push PC low
+			// Push PC and jump to interrupt vector
+			c.push(c.Regs.PC)
 			c.Regs.PC = 0x0040 + uint16(bit)*8
-			c.idle() // internal M-cycle 5
-			return true
+			return 20
 		}
 	}
-	return false
+	return 0
 }
 
-// fetchByte reads a byte at PC, increments PC, and ticks 1 M-cycle
+// fetchByte reads a byte at PC and increments PC
 func (c *CPU) fetchByte() uint8 {
 	val := c.Bus.Read(c.Regs.PC)
 	if c.haltBug {
+		// HALT bug: PC fails to increment, causing the next byte to be read twice
 		c.haltBug = false
 	} else {
 		c.Regs.PC++
 	}
-	c.tick()
 	return val
 }
 
-// fetchWord reads a 16-bit word at PC (little endian), ticks 2 M-cycles
+// fetchWord reads a 16-bit word at PC (little endian) and increments PC by 2
 func (c *CPU) fetchWord() uint16 {
 	lo := uint16(c.fetchByte())
 	hi := uint16(c.fetchByte())
 	return hi<<8 | lo
 }
 
-// push writes a 16-bit value to the stack (high byte first), ticks 2 M-cycles
+// Stack operations - push writes high byte first (SP-1), then low byte (SP-2)
 func (c *CPU) push(value uint16) {
 	c.Regs.SP--
-	c.write(c.Regs.SP, uint8(value>>8)) // High byte
+	c.Bus.Write(c.Regs.SP, uint8(value>>8)) // High byte
 	c.Regs.SP--
-	c.write(c.Regs.SP, uint8(value&0xFF)) // Low byte
+	c.Bus.Write(c.Regs.SP, uint8(value&0xFF)) // Low byte
 }
 
-// pop reads a 16-bit value from the stack, ticks 2 M-cycles
 func (c *CPU) pop() uint16 {
-	lo := uint16(c.read(c.Regs.SP))
-	c.Regs.SP++
-	hi := uint16(c.read(c.Regs.SP))
-	c.Regs.SP++
-	return hi<<8 | lo
+	val := c.Bus.ReadWord(c.Regs.SP)
+	c.Regs.SP += 2
+	return val
 }
 
 // --- ALU Helpers ---
@@ -276,6 +238,7 @@ func (c *CPU) addSPSigned(val int8) uint16 {
 	result := sp + offset
 	c.Regs.SetFlag(FlagZ, false)
 	c.Regs.SetFlag(FlagN, false)
+	// Half carry and carry are based on lower byte addition
 	c.Regs.SetFlag(FlagH, (sp&0x0F)+(offset&0x0F) > 0x0F)
 	c.Regs.SetFlag(FlagC, (sp&0xFF)+(offset&0xFF) > 0xFF)
 	return result
@@ -379,6 +342,9 @@ func (c *CPU) bit(b uint8, val uint8) {
 func (c *CPU) daa() {
 	a := c.Regs.A
 	if !c.Regs.GetFlag(FlagN) {
+		// After addition: correct high nibble first (on original A),
+		// then low nibble. Reversing this order causes overflow to mask
+		// the high nibble condition (e.g. 0xFF+0x06=0x05 hides >0x99).
 		if c.Regs.GetFlag(FlagC) || a > 0x99 {
 			a += 0x60
 			c.Regs.SetFlag(FlagC, true)
@@ -387,6 +353,7 @@ func (c *CPU) daa() {
 			a += 0x06
 		}
 	} else {
+		// After subtraction
 		if c.Regs.GetFlag(FlagC) {
 			a -= 0x60
 		}
