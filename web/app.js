@@ -14,6 +14,10 @@
     let offCanvas = null;
     let offCtx = null;
 
+    // Canvas-level scanline/grid overlay (pixel-aligned, no moiré)
+    let gridCanvas = null;
+    let currentGridMode = null;
+
     // Frame timing
     const FRAME_DURATION = 1000 / 59.7273; // ~16.74ms - exact refresh rate
     let lastFrameTime = 0;
@@ -350,9 +354,78 @@
         animFrameId = requestAnimationFrame(emulationLoop);
     }
 
+    // Build a 160×144 grid overlay canvas for the given scanline mode.
+    // Drawing this at native resolution ensures perfect pixel alignment.
+    function buildGridCanvas(mode) {
+        if (mode === currentGridMode) return;
+        currentGridMode = mode;
+
+        if (!mode) { gridCanvas = null; return; }
+
+        var c = document.createElement('canvas');
+        c.width = 160; c.height = 144;
+        var g = c.getContext('2d');
+
+        if (mode === 'scan-dmg') {
+            // Dot-matrix: darken right and bottom edge of every pixel
+            var id = g.createImageData(160, 144);
+            var d = id.data;
+            for (var y = 0; y < 144; y++) {
+                for (var x = 0; x < 160; x++) {
+                    var i = (y * 160 + x) * 4;
+                    d[i] = 0; d[i+1] = 0; d[i+2] = 0;
+                    // Darken bottom-right corner most, edges less
+                    var edgeX = (x % 2 === 1) ? 0.12 : 0;
+                    var edgeY = (y % 2 === 1) ? 0.12 : 0;
+                    d[i+3] = Math.min(255, ((edgeX + edgeY) * 255) | 0);
+                }
+            }
+            g.putImageData(id, 0, 0);
+        } else if (mode === 'scan-clean') {
+            // Subtle horizontal scanlines: every 3rd row darkened
+            g.fillStyle = 'rgba(0,0,0,0.12)';
+            for (var y = 2; y < 144; y += 3) {
+                g.fillRect(0, y, 160, 1);
+            }
+        } else if (mode === 'scan-heavy') {
+            // Bold CRT-style scanlines: every 3rd row with heavy darkening
+            g.fillStyle = 'rgba(0,0,0,0.28)';
+            for (var y = 2; y < 144; y += 3) {
+                g.fillRect(0, y, 160, 1);
+            }
+        } else if (mode === 'scan-lcd') {
+            // Pixel grid + color fringing
+            var id = g.createImageData(160, 144);
+            var d = id.data;
+            for (var y = 0; y < 144; y++) {
+                for (var x = 0; x < 160; x++) {
+                    var i = (y * 160 + x) * 4;
+                    // Horizontal scanline every 3rd row
+                    if (y % 3 === 2) {
+                        d[i] = 0; d[i+1] = 0; d[i+2] = 0; d[i+3] = 46;
+                    }
+                    // Subtle RGB sub-pixel fringing
+                    var sub = x % 3;
+                    if (sub === 0) { d[i] = 255; d[i+3] = Math.max(d[i+3], 5); }
+                    else if (sub === 1) { d[i+1] = 255; d[i+3] = Math.max(d[i+3], 5); }
+                    else { d[i+2] = 255; d[i+3] = Math.max(d[i+3], 5); }
+                }
+            }
+            g.putImageData(id, 0, 0);
+        }
+
+        gridCanvas = c;
+    }
+
     function renderFrame() {
         imageData.data.set(frameBuffer);
         offCtx.putImageData(imageData, 0, 0);
+
+        // Composite the pixel-aligned grid overlay onto the offscreen canvas
+        if (gridCanvas) {
+            offCtx.drawImage(gridCanvas, 0, 0);
+        }
+
         // LCD response: draw at reduced opacity so the previous frame bleeds
         // through, replicating the Game Boy's slow pixel transition time.
         if (lcdResponse) {
@@ -918,10 +991,8 @@
         var savedScan = localStorage.getItem('g2db-scanline');
         if (savedScan === null) savedScan = 'scan-dmg'; // default to DMG-01
 
-        // Apply saved setting
-        if (savedScan) {
-            screenWell.classList.add(savedScan);
-        }
+        // Apply saved setting — canvas-level grid, no CSS overlay
+        buildGridCanvas(savedScan || null);
         scanBtns.forEach(function(btn) {
             if (btn.dataset.scan === savedScan) {
                 btn.classList.add('active');
@@ -932,15 +1003,11 @@
 
         scanBtns.forEach(function(btn) {
             btn.addEventListener('click', function() {
-                // Remove all scan classes
-                screenWell.classList.remove('scan-dmg', 'scan-clean', 'scan-heavy', 'scan-lcd');
                 // Remove active from all buttons
                 scanBtns.forEach(function(b) { b.classList.remove('active'); });
-                // Apply selected
+                // Build canvas-level grid for selected mode
                 var mode = btn.dataset.scan;
-                if (mode) {
-                    screenWell.classList.add(mode);
-                }
+                buildGridCanvas(mode || null);
                 btn.classList.add('active');
                 localStorage.setItem('g2db-scanline', mode);
             });

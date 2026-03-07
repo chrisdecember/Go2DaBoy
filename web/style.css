@@ -170,6 +170,9 @@ html, body {
 }
 
 /* ── Scanline overlays ────────────────────────── */
+/* Grid/scanline effects are now rendered at the canvas pixel level
+   (in buildGridCanvas) for perfect alignment with Game Boy pixels.
+   The CSS ::after overlay is kept only as a no-op base for future use. */
 
 #screen-well::after {
     content: '';
@@ -179,77 +182,6 @@ html, body {
     pointer-events: none;
     z-index: 1;
     opacity: 0;
-    mix-blend-mode: multiply;
-    transition: opacity 0.3s ease;
-}
-
-/* DMG-01 — realistic Game Boy LCD dot matrix grid */
-#screen-well.scan-dmg::after {
-    opacity: 1;
-    background:
-        repeating-linear-gradient(
-            to bottom,
-            transparent 0px,
-            transparent 1px,
-            rgba(0,0,0,0.12) 1px,
-            rgba(0,0,0,0.06) 2px
-        ),
-        repeating-linear-gradient(
-            to right,
-            transparent 0px,
-            transparent 1px,
-            rgba(0,0,0,0.08) 1px,
-            rgba(0,0,0,0.04) 2px
-        );
-    background-size: 2px 2px;
-}
-
-/* Clean — subtle horizontal scanlines */
-#screen-well.scan-clean::after {
-    opacity: 1;
-    background: repeating-linear-gradient(
-        to bottom,
-        transparent 0px,
-        transparent 2px,
-        rgba(0,0,0,0.12) 2px,
-        rgba(0,0,0,0.12) 3px
-    );
-    background-size: 100% 3px;
-}
-
-/* Heavy — bold CRT-style scanlines with glow bleed */
-#screen-well.scan-heavy::after {
-    opacity: 1;
-    background: repeating-linear-gradient(
-        to bottom,
-        rgba(255,255,255,0.03) 0px,
-        transparent 1px,
-        transparent 2px,
-        rgba(0,0,0,0.28) 2px,
-        rgba(0,0,0,0.28) 3px
-    );
-    background-size: 100% 3px;
-}
-
-/* LCD — pixel grid with slight color fringing */
-#screen-well.scan-lcd::after {
-    opacity: 1;
-    background:
-        repeating-linear-gradient(
-            to bottom,
-            transparent 0px,
-            transparent 2px,
-            rgba(0,0,0,0.18) 2px,
-            rgba(0,0,0,0.08) 3px
-        ),
-        repeating-linear-gradient(
-            to right,
-            rgba(255,0,0,0.02) 0px,
-            rgba(0,255,0,0.02) 1px,
-            rgba(0,0,255,0.02) 2px,
-            transparent 3px
-        );
-    background-size: 3px 3px;
 }
 
 #game-title {
