@@ -1,17 +1,23 @@
 package cpu
 
-// executeCB handles CB-prefixed opcodes. Returns T-cycles (not including CB prefix fetch).
-func (c *CPU) executeCB(opcode uint8) int {
-	// CB opcodes follow a regular pattern:
-	// Bits 7-6: operation (00=rotate/shift, 01=BIT, 10=RES, 11=SET)
-	// Bits 5-3: bit number (for BIT/RES/SET) or sub-operation (for rotate/shift)
-	// Bits 2-0: register (B=0, C=1, D=2, E=3, H=4, L=5, (HL)=6, A=7)
-
+// executeCB handles CB-prefixed opcodes. The CB prefix fetch and CB opcode fetch
+// are already ticked by the caller. This function ticks for any memory operations.
+//
+// Timing (including prefix + opcode fetches done by caller):
+//   - CB reg op:       8T  (prefix fetch + opcode fetch)
+//   - CB (HL) BIT:     12T (prefix + opcode + read)
+//   - CB (HL) rot/res/set: 16T (prefix + opcode + read + write)
+func (c *CPU) executeCB(opcode uint8) {
 	reg := opcode & 0x07
 	isHL := reg == 6
 
-	// Read the value
-	val := c.cbRead(reg)
+	// Read the value (ticks 1 M-cycle for (HL))
+	var val uint8
+	if isHL {
+		val = c.read(c.Regs.GetHL())
+	} else {
+		val = c.cbReadReg(reg)
+	}
 
 	op := opcode >> 6
 	switch op {
@@ -35,43 +41,37 @@ func (c *CPU) executeCB(opcode uint8) int {
 		case 7:
 			val = c.srl(val)
 		}
-		c.cbWrite(reg, val)
 		if isHL {
-			return 12
+			c.write(c.Regs.GetHL(), val)
+		} else {
+			c.cbWriteReg(reg, val)
 		}
-		return 4
 
-	case 1: // BIT b, r
+	case 1: // BIT b, r (no write back)
 		bit := (opcode >> 3) & 0x07
 		c.bit(bit, val)
-		if isHL {
-			return 8
-		}
-		return 4
 
 	case 2: // RES b, r
 		bit := (opcode >> 3) & 0x07
 		val &^= 1 << bit
-		c.cbWrite(reg, val)
 		if isHL {
-			return 12
+			c.write(c.Regs.GetHL(), val)
+		} else {
+			c.cbWriteReg(reg, val)
 		}
-		return 4
 
 	case 3: // SET b, r
 		bit := (opcode >> 3) & 0x07
 		val |= 1 << bit
-		c.cbWrite(reg, val)
 		if isHL {
-			return 12
+			c.write(c.Regs.GetHL(), val)
+		} else {
+			c.cbWriteReg(reg, val)
 		}
-		return 4
 	}
-
-	return 4
 }
 
-func (c *CPU) cbRead(reg uint8) uint8 {
+func (c *CPU) cbReadReg(reg uint8) uint8 {
 	switch reg {
 	case 0:
 		return c.Regs.B
@@ -85,15 +85,13 @@ func (c *CPU) cbRead(reg uint8) uint8 {
 		return c.Regs.H
 	case 5:
 		return c.Regs.L
-	case 6:
-		return c.Bus.Read(c.Regs.GetHL())
 	case 7:
 		return c.Regs.A
 	}
 	return 0
 }
 
-func (c *CPU) cbWrite(reg uint8, val uint8) {
+func (c *CPU) cbWriteReg(reg uint8, val uint8) {
 	switch reg {
 	case 0:
 		c.Regs.B = val
@@ -107,8 +105,6 @@ func (c *CPU) cbWrite(reg uint8, val uint8) {
 		c.Regs.H = val
 	case 5:
 		c.Regs.L = val
-	case 6:
-		c.Bus.Write(c.Regs.GetHL(), val)
 	case 7:
 		c.Regs.A = val
 	}

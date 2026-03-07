@@ -274,6 +274,27 @@ func (b *Bus) startDMA(value uint8) {
 	b.dmaCycles = -8 // 2 M-cycle startup delay before first byte transfer
 }
 
+// Tick advances all subsystems by the given T-cycles (called by CPU after each M-cycle).
+func (b *Bus) Tick(cycles int) {
+	if b.Timer.Step(cycles) {
+		b.ifReg |= 0x04 // Timer interrupt
+	}
+	ppuIRQ := b.PPU.Step(cycles)
+	if ppuIRQ&0x01 != 0 {
+		b.ifReg |= 0x01 // VBlank interrupt
+	}
+	if ppuIRQ&0x02 != 0 {
+		b.ifReg |= 0x02 // STAT interrupt
+	}
+	b.APU.Step(cycles)
+	b.StepDMA(cycles)
+}
+
+// ClearInterruptBit clears a bit in the IF register (used during interrupt dispatch)
+func (b *Bus) ClearInterruptBit(mask uint8) {
+	b.ifReg &^= mask
+}
+
 // ReadWord reads a 16-bit word (little endian)
 func (b *Bus) ReadWord(addr uint16) uint16 {
 	lo := uint16(b.Read(addr))
