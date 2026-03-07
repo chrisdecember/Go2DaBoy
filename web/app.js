@@ -25,6 +25,21 @@
     let wasFastForward = false;   // track transitions
     const FF_SPEED = 4;
 
+    // LCD response simulation: mimics the Game Boy LCD's slow pixel response
+    // time (~80-100 ms), which causes characteristic ghosting on moving
+    // objects.  Drawing the new frame at reduced opacity lets the previous
+    // frame bleed through, perfectly replicating the hardware behaviour while
+    // also masking any frame-pacing stutter on every refresh rate.
+    let lcdResponse = true;
+    const LCD_ALPHA = 0.65; // 35% ghost retention per frame ≈ 50 ms persistence
+
+    // Dynamic rate control: adjusts the APU output sample rate so the audio
+    // ring buffer stays at a stable fill level.  This prevents both underruns
+    // (silence / clicks) and overflows (dropped batches), and as a side-effect
+    // keeps the emulator locked to the display's actual refresh rate.
+    const DRC_TARGET  = 4096;  // target fill (float32 samples ≈ 46 ms at 44100)
+    const DRC_MAX_ADJ = 0.005; // max ±0.5 % rate change (inaudible)
+
     function isFastForward() {
         return fastForwardHeld || fastForwardToggle;
     }
@@ -318,6 +333,19 @@
             renderFrame();
         }
 
+        // Dynamic rate control — keep audio ring buffer at a stable fill level
+        if (audioRing && soundEnabled && audioCtx && audioCtx.state === 'running' && !ff) {
+            var avail  = audioRingAvailable();
+            var error  = DRC_TARGET - avail;
+            var adjust = error / DRC_TARGET * DRC_MAX_ADJ;
+            adjust = Math.max(-DRC_MAX_ADJ, Math.min(DRC_MAX_ADJ, adjust));
+            if (typeof gbSetAudioRate !== 'undefined') {
+                gbSetAudioRate(Math.round(44100 * (1.0 + adjust)));
+            }
+        } else if (ff && typeof gbSetAudioRate !== 'undefined') {
+            gbSetAudioRate(44100); // reset during fast-forward
+        }
+
         updateFastForwardIndicator(ff);
         animFrameId = requestAnimationFrame(emulationLoop);
     }
@@ -325,7 +353,13 @@
     function renderFrame() {
         imageData.data.set(frameBuffer);
         offCtx.putImageData(imageData, 0, 0);
+        // LCD response: draw at reduced opacity so the previous frame bleeds
+        // through, replicating the Game Boy's slow pixel transition time.
+        if (lcdResponse) {
+            ctx.globalAlpha = LCD_ALPHA;
+        }
         ctx.drawImage(offCanvas, 0, 0);
+        ctx.globalAlpha = 1.0;
     }
 
     function updateFastForwardIndicator(active) {
@@ -854,10 +888,35 @@
             updatePickerInputs();
         });
 
+        // ── LCD response toggle ────────────────────────────────
+        var lcdBtns = document.querySelectorAll('.lcd-opt');
+        var savedLcd = localStorage.getItem('g2db-lcd-response');
+        if (savedLcd !== null) {
+            lcdResponse = savedLcd === '1';
+        } // else keep default (true)
+
+        lcdBtns.forEach(function(btn) {
+            if ((btn.dataset.lcd === 'on') === lcdResponse) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        lcdBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                lcdBtns.forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                lcdResponse = btn.dataset.lcd === 'on';
+                localStorage.setItem('g2db-lcd-response', lcdResponse ? '1' : '0');
+            });
+        });
+
         // ── Scanline toggle ──────────────────────────────────
         var screenWell = document.getElementById('screen-well');
         var scanBtns = document.querySelectorAll('.scan-opt');
-        var savedScan = localStorage.getItem('g2db-scanline') || '';
+        var savedScan = localStorage.getItem('g2db-scanline');
+        if (savedScan === null) savedScan = 'scan-dmg'; // default to DMG-01
 
         // Apply saved setting
         if (savedScan) {

@@ -871,6 +871,41 @@ html, body {
     text-transform: uppercase;
 }
 
+#lcd-response-section h3 {
+    font-size: 11px;
+    color: #999;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+#lcd-response-options {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.lcd-opt {
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background: #3A3A3A;
+    color: #CCC;
+    font-size: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.lcd-opt:hover { background: #4A4A4A; }
+
+.lcd-opt.active {
+    border-color: #9BBC0F;
+    background: #444;
+    color: #9BBC0F;
+}
+
 #scanline-options {
     display: flex;
     gap: 4px;

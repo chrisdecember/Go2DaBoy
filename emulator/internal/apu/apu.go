@@ -32,10 +32,14 @@ type APU struct {
 	sampleCounter int
 	sampleBuffer  []float32
 	bufferPos     int
+	outputRate    int // effective sample rate (adjustable for dynamic rate control)
 
 	// High-pass filter capacitors (removes DC offset — the original hardware
 	// has an analog HPF that centers the waveform around zero)
 	hpfCapL, hpfCapR float32
+
+	// Low-pass filter state (simulates analog output path rolloff)
+	lpfL, lpfR float32
 }
 
 type squareChannel struct {
@@ -100,7 +104,8 @@ var noiseDivisors = [8]int{8, 16, 32, 48, 64, 80, 96, 112}
 
 func New() *APU {
 	a := &APU{
-		sampleBuffer: make([]float32, samplesPerFrame*2), // stereo
+		sampleBuffer: make([]float32, 2048), // stereo; extra headroom for rate control
+		outputRate:   sampleRate,
 	}
 	a.ch4.lfsr = 0x7FFF
 	return a
@@ -119,6 +124,9 @@ func (a *APU) Reset() {
 	a.frameSeqStep = 0
 	a.sampleCounter = 0
 	a.bufferPos = 0
+	a.outputRate = sampleRate
+	a.lpfL = 0
+	a.lpfR = 0
 }
 
 func (a *APU) Read(addr uint16) uint8 {
@@ -404,7 +412,7 @@ func (a *APU) Step(cycles int) {
 		a.clockCh4()
 
 		// Generate sample (integer arithmetic — no float64 in hot path)
-		a.sampleCounter += sampleRate
+		a.sampleCounter += a.outputRate
 		if a.sampleCounter >= cpuFreq {
 			a.sampleCounter -= cpuFreq
 			a.generateSample()
@@ -672,12 +680,22 @@ func (a *APU) generateSample() {
 	// High-pass filter: removes DC offset so waveform is centered at zero.
 	// Without this, square waves sit at a positive DC level and channel
 	// on/off transitions cause audible clicks from DC level shifts.
-	// Charge factor 0.998 ≈ 14 Hz cutoff at 44100 Hz sample rate.
-	const hpfCharge float32 = 0.002 // 1 - 0.998
+	// DMG hardware capacitor: charge factor 0.999958 at native 4.19 MHz.
+	// Scaled to 44100 Hz: 0.999958^(4194304/44100) ≈ 0.996 → charge ≈ 0.004.
+	const hpfCharge float32 = 0.004
 	a.hpfCapL += (left - a.hpfCapL) * hpfCharge
 	left -= a.hpfCapL
 	a.hpfCapR += (right - a.hpfCapR) * hpfCharge
 	right -= a.hpfCapR
+
+	// Low-pass filter: gentle rolloff above ~16 kHz, simulating the analog
+	// output path (amplifier + coupling capacitors) of the original hardware.
+	// 1st-order IIR, α ≈ 0.7 at 44100 Hz gives -3 dB around 16 kHz.
+	const lpfAlpha float32 = 0.7
+	a.lpfL = lpfAlpha*left + (1-lpfAlpha)*a.lpfL
+	left = a.lpfL
+	a.lpfR = lpfAlpha*right + (1-lpfAlpha)*a.lpfR
+	right = a.lpfR
 
 	a.sampleBuffer[a.bufferPos] = left
 	a.bufferPos++
@@ -698,4 +716,13 @@ func (a *APU) GetSamples() []float32 {
 // GetSampleRate returns the audio sample rate
 func (a *APU) GetSampleRate() int {
 	return sampleRate
+}
+
+// SetOutputRate adjusts the effective output sample rate for dynamic rate
+// control. The caller tweaks this ±0.5% around 44100 to keep the audio ring
+// buffer at a stable fill level, preventing both underruns and overflows.
+func (a *APU) SetOutputRate(rate int) {
+	if rate > 0 {
+		a.outputRate = rate
+	}
 }
