@@ -191,7 +191,7 @@
 
         // Setup canvas with double-buffering
         canvas = document.getElementById('screen');
-        ctx = canvas.getContext('2d');
+        ctx = canvas.getContext('2d', { alpha: false });
 
         offCanvas = document.createElement('canvas');
         offCanvas.width = 160;
