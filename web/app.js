@@ -14,9 +14,11 @@
     let offCanvas = null;
     let offCtx = null;
 
-    // Canvas-level scanline/grid overlay (pixel-aligned, no moiré)
-    let gridCanvas = null;
+    // Display-resolution grid overlay (pixel-aligned, no moiré)
+    let gridOverlay = null;   // the overlay <canvas> element
+    let gridCtx = null;
     let currentGridMode = null;
+    let gridDirty = true;     // true when overlay needs redraw
 
     // Frame timing
     const FRAME_DURATION = 1000 / 59.7273; // ~16.74ms - exact refresh rate
@@ -203,6 +205,14 @@
         offCtx = offCanvas.getContext('2d');
         imageData = offCtx.createImageData(160, 144);
 
+        // Grid overlay canvas — drawn at display resolution
+        gridOverlay = document.getElementById('grid-overlay');
+        gridCtx = gridOverlay.getContext('2d');
+        // Redraw grid when the screen canvas resizes
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(function() { gridDirty = true; }).observe(canvas);
+        }
+
         frameBuffer = new Uint8Array(160 * 144 * 4);
 
         // Fill with default green
@@ -354,77 +364,98 @@
         animFrameId = requestAnimationFrame(emulationLoop);
     }
 
-    // Build a 160×144 grid overlay canvas for the given scanline mode.
-    // Drawing this at native resolution ensures perfect pixel alignment.
-    function buildGridCanvas(mode) {
-        if (mode === currentGridMode) return;
-        currentGridMode = mode;
+    // Set the active grid mode and mark for redraw.
+    function setGridMode(mode) {
+        currentGridMode = mode || null;
+        gridDirty = true;
+    }
 
-        if (!mode) { gridCanvas = null; return; }
+    // Redraw the grid overlay at display resolution.
+    // Called when the mode changes or the canvas resizes.
+    function redrawGrid() {
+        if (!gridOverlay || !canvas) return;
 
-        var c = document.createElement('canvas');
-        c.width = 160; c.height = 144;
-        var g = c.getContext('2d');
+        // Position overlay to exactly cover the screen canvas
+        var rect = canvas.getBoundingClientRect();
+        var wellRect = gridOverlay.parentElement.getBoundingClientRect();
+        gridOverlay.style.left = (rect.left - wellRect.left) + 'px';
+        gridOverlay.style.top = (rect.top - wellRect.top) + 'px';
+        gridOverlay.style.width = rect.width + 'px';
+        gridOverlay.style.height = rect.height + 'px';
 
-        if (mode === 'scan-dmg') {
-            // Dot-matrix: darken right and bottom edge of every pixel
-            var id = g.createImageData(160, 144);
-            var d = id.data;
-            for (var y = 0; y < 144; y++) {
-                for (var x = 0; x < 160; x++) {
-                    var i = (y * 160 + x) * 4;
-                    d[i] = 0; d[i+1] = 0; d[i+2] = 0;
-                    // Darken bottom-right corner most, edges less
-                    var edgeX = (x % 2 === 1) ? 0.12 : 0;
-                    var edgeY = (y % 2 === 1) ? 0.12 : 0;
-                    d[i+3] = Math.min(255, ((edgeX + edgeY) * 255) | 0);
-                }
+        var dw = rect.width;
+        var dh = rect.height;
+        if (dw === 0 || dh === 0) return;
+
+        // Match canvas buffer to display pixels (incl. devicePixelRatio)
+        var dpr = window.devicePixelRatio || 1;
+        var bw = Math.round(dw * dpr);
+        var bh = Math.round(dh * dpr);
+        gridOverlay.width = bw;
+        gridOverlay.height = bh;
+
+        gridCtx.clearRect(0, 0, bw, bh);
+        gridDirty = false;
+
+        if (!currentGridMode) return;
+
+        var pxW = bw / 160;   // width of one GB pixel in display pixels
+        var pxH = bh / 144;
+
+        if (currentGridMode === 'scan-dmg') {
+            // Dot-matrix grid: 1px dark lines on pixel boundaries
+            gridCtx.strokeStyle = 'rgba(0,0,0,0.18)';
+            gridCtx.lineWidth = 1;
+            gridCtx.beginPath();
+            // Vertical lines
+            for (var x = 1; x < 160; x++) {
+                var sx = Math.round(x * pxW) + 0.5;
+                gridCtx.moveTo(sx, 0);
+                gridCtx.lineTo(sx, bh);
             }
-            g.putImageData(id, 0, 0);
-        } else if (mode === 'scan-clean') {
-            // Subtle horizontal scanlines: every 3rd row darkened
-            g.fillStyle = 'rgba(0,0,0,0.12)';
-            for (var y = 2; y < 144; y += 3) {
-                g.fillRect(0, y, 160, 1);
+            // Horizontal lines
+            for (var y = 1; y < 144; y++) {
+                var sy = Math.round(y * pxH) + 0.5;
+                gridCtx.moveTo(0, sy);
+                gridCtx.lineTo(bw, sy);
             }
-        } else if (mode === 'scan-heavy') {
-            // Bold CRT-style scanlines: every 3rd row with heavy darkening
-            g.fillStyle = 'rgba(0,0,0,0.28)';
-            for (var y = 2; y < 144; y += 3) {
-                g.fillRect(0, y, 160, 1);
+            gridCtx.stroke();
+        } else if (currentGridMode === 'scan-clean') {
+            // Subtle horizontal scanlines at pixel boundaries
+            gridCtx.fillStyle = 'rgba(0,0,0,0.12)';
+            for (var y = 1; y < 144; y++) {
+                var sy = Math.round(y * pxH);
+                gridCtx.fillRect(0, sy, bw, 1);
             }
-        } else if (mode === 'scan-lcd') {
-            // Pixel grid + color fringing
-            var id = g.createImageData(160, 144);
-            var d = id.data;
-            for (var y = 0; y < 144; y++) {
-                for (var x = 0; x < 160; x++) {
-                    var i = (y * 160 + x) * 4;
-                    // Horizontal scanline every 3rd row
-                    if (y % 3 === 2) {
-                        d[i] = 0; d[i+1] = 0; d[i+2] = 0; d[i+3] = 46;
-                    }
-                    // Subtle RGB sub-pixel fringing
-                    var sub = x % 3;
-                    if (sub === 0) { d[i] = 255; d[i+3] = Math.max(d[i+3], 5); }
-                    else if (sub === 1) { d[i+1] = 255; d[i+3] = Math.max(d[i+3], 5); }
-                    else { d[i+2] = 255; d[i+3] = Math.max(d[i+3], 5); }
-                }
+        } else if (currentGridMode === 'scan-heavy') {
+            // Bold CRT scanlines at pixel boundaries
+            gridCtx.fillStyle = 'rgba(0,0,0,0.28)';
+            for (var y = 1; y < 144; y++) {
+                var sy = Math.round(y * pxH);
+                gridCtx.fillRect(0, sy, bw, 1);
             }
-            g.putImageData(id, 0, 0);
+        } else if (currentGridMode === 'scan-lcd') {
+            // Pixel grid + subtle color fringing
+            gridCtx.strokeStyle = 'rgba(0,0,0,0.14)';
+            gridCtx.lineWidth = 1;
+            gridCtx.beginPath();
+            for (var x = 1; x < 160; x++) {
+                var sx = Math.round(x * pxW) + 0.5;
+                gridCtx.moveTo(sx, 0);
+                gridCtx.lineTo(sx, bh);
+            }
+            for (var y = 1; y < 144; y++) {
+                var sy = Math.round(y * pxH) + 0.5;
+                gridCtx.moveTo(0, sy);
+                gridCtx.lineTo(bw, sy);
+            }
+            gridCtx.stroke();
         }
-
-        gridCanvas = c;
     }
 
     function renderFrame() {
         imageData.data.set(frameBuffer);
         offCtx.putImageData(imageData, 0, 0);
-
-        // Composite the pixel-aligned grid overlay onto the offscreen canvas
-        if (gridCanvas) {
-            offCtx.drawImage(gridCanvas, 0, 0);
-        }
 
         // LCD response: draw at reduced opacity so the previous frame bleeds
         // through, replicating the Game Boy's slow pixel transition time.
@@ -433,6 +464,11 @@
         }
         ctx.drawImage(offCanvas, 0, 0);
         ctx.globalAlpha = 1.0;
+
+        // Redraw grid overlay only when dirty (mode change or resize)
+        if (gridDirty) {
+            redrawGrid();
+        }
     }
 
     function updateFastForwardIndicator(active) {
@@ -986,13 +1022,13 @@
         });
 
         // ── Scanline toggle ──────────────────────────────────
-        var screenWell = document.getElementById('screen-well');
         var scanBtns = document.querySelectorAll('.scan-opt');
         var savedScan = localStorage.getItem('g2db-scanline');
         if (savedScan === null) savedScan = 'scan-dmg'; // default to DMG-01
 
-        // Apply saved setting — canvas-level grid, no CSS overlay
-        buildGridCanvas(savedScan || null);
+        // Apply saved setting — display-resolution grid overlay
+        setGridMode(savedScan || null);
+        redrawGrid();
         scanBtns.forEach(function(btn) {
             if (btn.dataset.scan === savedScan) {
                 btn.classList.add('active');
@@ -1005,9 +1041,9 @@
             btn.addEventListener('click', function() {
                 // Remove active from all buttons
                 scanBtns.forEach(function(b) { b.classList.remove('active'); });
-                // Build canvas-level grid for selected mode
                 var mode = btn.dataset.scan;
-                buildGridCanvas(mode || null);
+                setGridMode(mode || null);
+                redrawGrid();
                 btn.classList.add('active');
                 localStorage.setItem('g2db-scanline', mode);
             });

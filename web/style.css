@@ -169,20 +169,16 @@ html, body {
     will-change: transform;
 }
 
-/* ── Scanline overlays ────────────────────────── */
-/* Grid/scanline effects are now rendered at the canvas pixel level
-   (in buildGridCanvas) for perfect alignment with Game Boy pixels.
-   The CSS ::after overlay is kept only as a no-op base for future use. */
-
-#screen-well::after {
-    content: '';
+/* Grid overlay — positioned to exactly cover #screen via JS ResizeObserver */
+#grid-overlay {
     position: absolute;
-    top: 6px; bottom: 6px; left: 6px; right: 6px;
-    border-radius: 2px;
     pointer-events: none;
     z-index: 1;
-    opacity: 0;
+    border-radius: 2px;
 }
+
+/* Grid/scanline effects are rendered on #grid-overlay canvas at display
+   resolution for perfect pixel alignment — see redrawGrid() in app.js. */
 
 #game-title {
     font-size: 8px;
