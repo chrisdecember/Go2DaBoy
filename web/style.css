@@ -153,6 +153,8 @@ html, body {
     padding: 6px;
     position: relative;
     box-shadow: inset 0 2px 6px rgba(0,0,0,0.6);
+    --px-w: 2px;  /* overridden by JS syncGridSize() */
+    --px-h: 2px;
 }
 
 #screen {
@@ -169,16 +171,91 @@ html, body {
     will-change: transform;
 }
 
-/* Grid overlay — positioned to exactly cover #screen via JS ResizeObserver */
-#grid-overlay {
+/* ── Scanline / grid overlays ─────────────────────
+   Uses CSS ::after so the game canvas keeps its own GPU compositor layer
+   (will-change: transform) undisturbed — no extra canvas to cause tearing.
+   --px-w / --px-h are set by JS (syncGridSize) to match the actual pixel
+   scale, so the repeating pattern aligns exactly with GB pixels. */
+
+#screen-well::after {
+    content: '';
     position: absolute;
+    top: 6px; bottom: 6px; left: 6px; right: 6px;
+    border-radius: 2px;
     pointer-events: none;
     z-index: 1;
-    border-radius: 2px;
+    opacity: 0;
+    mix-blend-mode: multiply;
+    transition: opacity 0.3s ease;
 }
 
-/* Grid/scanline effects are rendered on #grid-overlay canvas at display
-   resolution for perfect pixel alignment — see redrawGrid() in app.js. */
+/* DMG-01 — dot matrix grid aligned to pixel boundaries */
+#screen-well.scan-dmg::after {
+    opacity: 1;
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0px,
+            transparent calc(var(--px-h) - 1px),
+            rgba(0,0,0,0.14) calc(var(--px-h) - 1px),
+            rgba(0,0,0,0.14) var(--px-h)
+        ),
+        repeating-linear-gradient(
+            to right,
+            transparent 0px,
+            transparent calc(var(--px-w) - 1px),
+            rgba(0,0,0,0.10) calc(var(--px-w) - 1px),
+            rgba(0,0,0,0.10) var(--px-w)
+        );
+    background-size: var(--px-w) var(--px-h);
+}
+
+/* Clean — horizontal scanlines at pixel boundaries */
+#screen-well.scan-clean::after {
+    opacity: 1;
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent calc(var(--px-h) - 1px),
+        rgba(0,0,0,0.12) calc(var(--px-h) - 1px),
+        rgba(0,0,0,0.12) var(--px-h)
+    );
+    background-size: 100% var(--px-h);
+}
+
+/* Heavy — bold CRT-style scanlines */
+#screen-well.scan-heavy::after {
+    opacity: 1;
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent calc(var(--px-h) - 1px),
+        rgba(0,0,0,0.28) calc(var(--px-h) - 1px),
+        rgba(0,0,0,0.28) var(--px-h)
+    );
+    background-size: 100% var(--px-h);
+}
+
+/* LCD — pixel grid with slight color fringing */
+#screen-well.scan-lcd::after {
+    opacity: 1;
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0px,
+            transparent calc(var(--px-h) - 1px),
+            rgba(0,0,0,0.16) calc(var(--px-h) - 1px),
+            rgba(0,0,0,0.16) var(--px-h)
+        ),
+        repeating-linear-gradient(
+            to right,
+            rgba(255,0,0,0.03) 0px,
+            rgba(0,255,0,0.03) calc(var(--px-w) * 0.33),
+            rgba(0,0,255,0.03) calc(var(--px-w) * 0.67),
+            transparent var(--px-w)
+        );
+    background-size: var(--px-w) var(--px-h);
+}
 
 #game-title {
     font-size: 8px;
@@ -896,6 +973,7 @@ html, body {
 @media (max-height: 500px) {
     #emu-shell { padding: 4px 10px 10px; border-radius: 8px 8px 8px 30px; }
     #screen-well { padding: 3px; }
+    #screen-well::after { top: 3px; bottom: 3px; left: 3px; right: 3px; }
     #controls { padding: 2px 8px; }
     #brand { display: none; }
     #ss-area { margin: 0; }
@@ -907,6 +985,7 @@ html, body {
     #emu-shell { max-width: 420px; padding: 14px 18px 22px; }
     #screen-bezel { padding: 8px 14px 8px; border-radius: 10px; }
     #screen-well { padding: 8px; }
+    #screen-well::after { top: 8px; bottom: 8px; left: 8px; right: 8px; }
     #brand-main { font-size: 22px; }
     #dpad { width: 120px; height: 120px; }
     #dpad::before { width: 40px; }
