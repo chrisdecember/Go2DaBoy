@@ -28,6 +28,7 @@ func main() {
 	js.Global().Set("gbReset", js.FuncOf(reset))
 	js.Global().Set("gbGetTitle", js.FuncOf(getTitle))
 	js.Global().Set("gbSetPalette", js.FuncOf(setPalette))
+	js.Global().Set("gbSetAudioRate", js.FuncOf(setAudioRate))
 
 	// Keep the Go runtime alive
 	select {}
@@ -153,6 +154,15 @@ func setPalette(this js.Value, args []js.Value) interface{} {
 		colors[i][3] = 0xFF
 	}
 	emu.SetPalette(colors)
+	return nil
+}
+
+// setAudioRate adjusts the APU output sample rate for dynamic rate control.
+func setAudioRate(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return nil
+	}
+	emu.APU.SetOutputRate(args[0].Int())
 	return nil
 }
 
