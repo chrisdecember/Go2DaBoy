@@ -14,11 +14,9 @@
     let offCanvas = null;
     let offCtx = null;
 
-    // Display-resolution grid overlay (pixel-aligned, no moiré)
-    let gridOverlay = null;   // the overlay <canvas> element
-    let gridCtx = null;
+    // Scanline/grid mode applied via CSS ::after with JS-computed sizing
     let currentGridMode = null;
-    let gridDirty = true;     // true when overlay needs redraw
+    let screenWell = null;
 
     // Frame timing
     const FRAME_DURATION = 1000 / 59.7273; // ~16.74ms - exact refresh rate
@@ -205,12 +203,10 @@
         offCtx = offCanvas.getContext('2d');
         imageData = offCtx.createImageData(160, 144);
 
-        // Grid overlay canvas — drawn at display resolution
-        gridOverlay = document.getElementById('grid-overlay');
-        gridCtx = gridOverlay.getContext('2d');
-        // Redraw grid when the screen canvas resizes
+        // Keep CSS grid pattern sized to actual pixel scale
+        screenWell = document.getElementById('screen-well');
         if (typeof ResizeObserver !== 'undefined') {
-            new ResizeObserver(function() { gridDirty = true; }).observe(canvas);
+            new ResizeObserver(function() { syncGridSize(); }).observe(canvas);
         }
 
         frameBuffer = new Uint8Array(160 * 144 * 4);
@@ -364,93 +360,25 @@
         animFrameId = requestAnimationFrame(emulationLoop);
     }
 
-    // Set the active grid mode and mark for redraw.
-    function setGridMode(mode) {
+    // Apply the scanline CSS class and sync the ::after background-size
+    // to the actual pixel scale so the pattern aligns with GB pixels.
+    function applyScanlineMode(mode) {
+        if (!screenWell) return;
+        screenWell.classList.remove('scan-dmg', 'scan-clean', 'scan-heavy', 'scan-lcd');
         currentGridMode = mode || null;
-        gridDirty = true;
+        if (mode) {
+            screenWell.classList.add(mode);
+        }
+        syncGridSize();
     }
 
-    // Redraw the grid overlay at display resolution.
-    // Called when the mode changes or the canvas resizes.
-    function redrawGrid() {
-        if (!gridOverlay || !canvas) return;
-
-        // Position overlay to exactly cover the screen canvas
-        var rect = canvas.getBoundingClientRect();
-        var wellRect = gridOverlay.parentElement.getBoundingClientRect();
-        gridOverlay.style.left = (rect.left - wellRect.left) + 'px';
-        gridOverlay.style.top = (rect.top - wellRect.top) + 'px';
-        gridOverlay.style.width = rect.width + 'px';
-        gridOverlay.style.height = rect.height + 'px';
-
-        var dw = rect.width;
-        var dh = rect.height;
-        if (dw === 0 || dh === 0) return;
-
-        // Match canvas buffer to display pixels (incl. devicePixelRatio)
-        var dpr = window.devicePixelRatio || 1;
-        var bw = Math.round(dw * dpr);
-        var bh = Math.round(dh * dpr);
-        gridOverlay.width = bw;
-        gridOverlay.height = bh;
-
-        gridCtx.clearRect(0, 0, bw, bh);
-        gridDirty = false;
-
-        if (!currentGridMode) return;
-
-        var pxW = bw / 160;   // width of one GB pixel in display pixels
-        var pxH = bh / 144;
-
-        if (currentGridMode === 'scan-dmg') {
-            // Dot-matrix grid: 1px dark lines on pixel boundaries
-            gridCtx.strokeStyle = 'rgba(0,0,0,0.18)';
-            gridCtx.lineWidth = 1;
-            gridCtx.beginPath();
-            // Vertical lines
-            for (var x = 1; x < 160; x++) {
-                var sx = Math.round(x * pxW) + 0.5;
-                gridCtx.moveTo(sx, 0);
-                gridCtx.lineTo(sx, bh);
-            }
-            // Horizontal lines
-            for (var y = 1; y < 144; y++) {
-                var sy = Math.round(y * pxH) + 0.5;
-                gridCtx.moveTo(0, sy);
-                gridCtx.lineTo(bw, sy);
-            }
-            gridCtx.stroke();
-        } else if (currentGridMode === 'scan-clean') {
-            // Subtle horizontal scanlines at pixel boundaries
-            gridCtx.fillStyle = 'rgba(0,0,0,0.12)';
-            for (var y = 1; y < 144; y++) {
-                var sy = Math.round(y * pxH);
-                gridCtx.fillRect(0, sy, bw, 1);
-            }
-        } else if (currentGridMode === 'scan-heavy') {
-            // Bold CRT scanlines at pixel boundaries
-            gridCtx.fillStyle = 'rgba(0,0,0,0.28)';
-            for (var y = 1; y < 144; y++) {
-                var sy = Math.round(y * pxH);
-                gridCtx.fillRect(0, sy, bw, 1);
-            }
-        } else if (currentGridMode === 'scan-lcd') {
-            // Pixel grid + subtle color fringing
-            gridCtx.strokeStyle = 'rgba(0,0,0,0.14)';
-            gridCtx.lineWidth = 1;
-            gridCtx.beginPath();
-            for (var x = 1; x < 160; x++) {
-                var sx = Math.round(x * pxW) + 0.5;
-                gridCtx.moveTo(sx, 0);
-                gridCtx.lineTo(sx, bh);
-            }
-            for (var y = 1; y < 144; y++) {
-                var sy = Math.round(y * pxH) + 0.5;
-                gridCtx.moveTo(0, sy);
-                gridCtx.lineTo(bw, sy);
-            }
-            gridCtx.stroke();
-        }
+    // Recompute the CSS background-size to match the current pixel scale.
+    function syncGridSize() {
+        if (!screenWell || !canvas) return;
+        var pxW = canvas.clientWidth / 160;
+        var pxH = canvas.clientHeight / 144;
+        screenWell.style.setProperty('--px-w', pxW + 'px');
+        screenWell.style.setProperty('--px-h', pxH + 'px');
     }
 
     function renderFrame() {
@@ -464,11 +392,6 @@
         }
         ctx.drawImage(offCanvas, 0, 0);
         ctx.globalAlpha = 1.0;
-
-        // Redraw grid overlay only when dirty (mode change or resize)
-        if (gridDirty) {
-            redrawGrid();
-        }
     }
 
     function updateFastForwardIndicator(active) {
@@ -1026,9 +949,8 @@
         var savedScan = localStorage.getItem('g2db-scanline');
         if (savedScan === null) savedScan = 'scan-dmg'; // default to DMG-01
 
-        // Apply saved setting — display-resolution grid overlay
-        setGridMode(savedScan || null);
-        redrawGrid();
+        // Apply saved setting
+        applyScanlineMode(savedScan || null);
         scanBtns.forEach(function(btn) {
             if (btn.dataset.scan === savedScan) {
                 btn.classList.add('active');
@@ -1039,11 +961,9 @@
 
         scanBtns.forEach(function(btn) {
             btn.addEventListener('click', function() {
-                // Remove active from all buttons
                 scanBtns.forEach(function(b) { b.classList.remove('active'); });
                 var mode = btn.dataset.scan;
-                setGridMode(mode || null);
-                redrawGrid();
+                applyScanlineMode(mode || null);
                 btn.classList.add('active');
                 localStorage.setItem('g2db-scanline', mode);
             });
