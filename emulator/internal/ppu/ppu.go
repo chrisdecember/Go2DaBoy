@@ -497,6 +497,21 @@ func (p *PPU) renderWindow(bgPriority *[ScreenWidth]uint8) {
 	}
 }
 
+// GetMode returns the current PPU mode.
+func (p *PPU) GetMode() uint8 {
+	return p.mode
+}
+
+// GetModeClock returns the current mode clock counter.
+func (p *PPU) GetModeClock() int {
+	return p.modeClock
+}
+
+// GetWindowLine returns the internal window line counter.
+func (p *PPU) GetWindowLine() int {
+	return p.windowLine
+}
+
 func (p *PPU) renderSprites(bgPriority [ScreenWidth]uint8) {
 	spriteHeight := 8
 	if p.LCDC&0x04 != 0 {
