@@ -164,6 +164,9 @@ html, body {
     image-rendering: crisp-edges;
     background: #9BBC0F;
     border-radius: 2px;
+    /* Promote to its own GPU compositor layer so buffer swaps are atomic
+       and the display never reads a half-written frame (prevents tearing). */
+    will-change: transform;
 }
 
 /* ── Scanline overlays ────────────────────────── */
