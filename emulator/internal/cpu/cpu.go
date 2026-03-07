@@ -342,14 +342,15 @@ func (c *CPU) bit(b uint8, val uint8) {
 func (c *CPU) daa() {
 	a := c.Regs.A
 	if !c.Regs.GetFlag(FlagN) {
-		// After addition: correct low nibble FIRST, then high nibble
-		// Low nibble must be checked on original value before high nibble adjustment
-		if c.Regs.GetFlag(FlagH) || (a&0x0F) > 0x09 {
-			a += 0x06
-		}
+		// After addition: correct high nibble first (on original A),
+		// then low nibble. Reversing this order causes overflow to mask
+		// the high nibble condition (e.g. 0xFF+0x06=0x05 hides >0x99).
 		if c.Regs.GetFlag(FlagC) || a > 0x99 {
 			a += 0x60
 			c.Regs.SetFlag(FlagC, true)
+		}
+		if c.Regs.GetFlag(FlagH) || (a&0x0F) > 0x09 {
+			a += 0x06
 		}
 	} else {
 		// After subtraction
