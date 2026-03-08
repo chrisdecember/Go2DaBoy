@@ -304,11 +304,13 @@
         var framesRun = 0;
 
         if (wasFastForward && !ff) {
-            // Leaving FF: reset timing so we don't lurch.
-            // Don't clear the ring buffer — it was never filled during FF,
-            // so the consumer drains naturally with no pop/click.
+            // Leaving FF: reset timing so we don't lurch, and flush the
+            // audio ring so stale samples don't play back with lag.
+            // The ScriptProcessor's underrun fade-out prevents any audible
+            // click from the sudden empty buffer.
             frameTimeAccumulator = 0;
             lastFrameTime = now;
+            audioRingClear();
         }
         wasFastForward = ff;
 
